@@ -6,29 +6,33 @@ import (
 	"time"
 
 	"github.com/DeBankDeFi/db-replicator/pkg/db"
+	"github.com/DeBankDeFi/db-replicator/pkg/kafka"
+	"github.com/DeBankDeFi/db-replicator/pkg/s3"
 	"github.com/DeBankDeFi/db-replicator/pkg/utils"
-	"github.com/DeBankDeFi/db-replicator/pkg/utils/blockpb"
+	"github.com/DeBankDeFi/db-replicator/pkg/utils/pb"
 	"go.uber.org/zap"
 )
 
 type Reader struct {
 	sync.Mutex
 
-	dbPool *db.DBPool
-	s3     *Client
+	config *utils.Config
 
-	lastBlockHeader *blockpb.BlockInfo
+	dbPool *db.DBPool
+	s3     *s3.Client
+	kafka  *kafka.KafkaClient
+
+	lastBlockHeader *pb.BlockInfo
 	reorgDeep       int32
 	resetChan       <-chan *utils.Config
 
 	running   bool
 	stopC     chan struct{}
 	stopdoneC chan struct{} // Reader shutdown complete
-	logger    *zap.Logger
 }
 
-func NewReader(config *utils.Config, dbPool *db.DBPool, resetChan <-chan *utils.Config) (reader *Reader, err error) {
-	s3, err := NewS3Client(context.Background(), config.Bucket, config.EnvPrex)
+func NewReader(config *utils.Config, dbPool *db.DBPool, resetChan <-chan string) (reader *Reader, err error) {
+	s3, err := s3.NewClient(config.S3ProxyAddr)
 	if err != nil {
 		return nil, err
 	}
@@ -37,15 +41,24 @@ func NewReader(config *utils.Config, dbPool *db.DBPool, resetChan <-chan *utils.
 	if err != nil {
 		return nil, err
 	}
+	utils.Logger().Info("NewReader", zap.Int64("block_num", lastBlockHeader.BlockNum), zap.Int64("msg_offset", lastBlockHeader.MsgOffset))
+
+	topic := utils.Topic(config.ChainId, config.Env, true)
+
+	kafka, err := kafka.NewKafkaClient(topic, lastBlockHeader.MsgOffset, config.KafkaAddr)
+	if err != nil {
+		return nil, err
+	}
 
 	reader = &Reader{
+		config:          config,
 		dbPool:          dbPool,
 		s3:              s3,
+		kafka:           kafka,
 		lastBlockHeader: lastBlockHeader,
 		reorgDeep:       config.ReorgDeep,
 		stopC:           make(chan struct{}),
 		stopdoneC:       make(chan struct{}),
-		logger:          utils.Logger(),
 	}
 	return reader, nil
 }
@@ -67,60 +80,76 @@ func (r *Reader) Stop() {
 }
 
 func (r *Reader) run() {
+	r.running = true
 	defer r.Stop()
 	ticker := time.NewTicker(100 * time.Millisecond)
+Loop:
 	for {
 		select {
 		case <-ticker.C:
-			objInfos, err := r.s3.ListHeaderStartAt(context.Background(), r.lastBlockHeader.BlockNum-int64(r.reorgDeep), r.reorgDeep*2, r.lastBlockHeader.LastTime)
+			infos, err := r.kafka.Fetch(context.Background())
 			if err != nil {
-				r.logger.Error("ListHeaderStartAt error", zap.Error(err))
+				utils.Logger().Error("ListHeaderStartAt error", zap.Error(err))
 				continue
 			}
-			for _, objInfo := range objInfos {
-				headerFile, err := r.s3.GetHeaderFile(context.Background(), objInfo.Key)
+			for _, info := range infos {
+				utils.Logger().Info("new header", zap.Any("BlockNum", info.BlockNum), zap.Any("MsgOffset", r.lastBlockHeader.MsgOffset))
+				headerFile, err := r.s3.GetFile(context.Background(), info)
 				if err != nil {
-					r.logger.Error("GetHeaderFile error", zap.Error(err), zap.Any("key", objInfo.Key))
+					utils.Logger().Error("GetHeaderFile error", zap.Error(err), zap.Any("info", info))
 					break
 				}
-				blockFile, err := r.s3.GetBlockFile(context.Background(), headerFile.Info.BlockHash)
+				info.BlockType = pb.BlockInfo_DATA
+				blockFile, err := r.s3.GetFile(context.Background(), info)
 				if err != nil {
-					r.logger.Error("GetBlockFile error", zap.Error(err), zap.Any("hash", headerFile.Info.BlockHash))
+					utils.Logger().Error("GetBlockFile error", zap.Error(err), zap.Any("hash", headerFile.Info.BlockHash))
 					break
 				}
 				err = r.dbPool.WriteBatchItems(blockFile.BatchItems)
 				if err != nil {
-					r.logger.Error("WriteBatchItems error", zap.Error(err))
+					utils.Logger().Error("WriteBatchItems error", zap.Error(err))
 					break
 				}
 				err = r.dbPool.WriteBatchItems(headerFile.BatchItems)
 				if err != nil {
-					r.logger.Error("WriteBatchItems error", zap.Error(err))
+					utils.Logger().Error("WriteBatchItems error", zap.Error(err))
 					break
 				}
-				if headerFile.Info.BlockNum > r.lastBlockHeader.BlockNum {
-					r.lastBlockHeader.BlockNum = headerFile.Info.BlockNum
-					r.lastBlockHeader.BlockHash = headerFile.Info.BlockHash
-				}
-				if headerFile.Info.LastTime > r.lastBlockHeader.LastTime {
-					r.lastBlockHeader.LastTime = headerFile.Info.LastTime
-				}
+				r.lastBlockHeader = info
+				r.lastBlockHeader.MsgOffset = r.kafka.LastReaderOffset()
+				r.kafka.IncrementLastReaderOffset()
 				err = r.dbPool.WriteBlockInfo(r.lastBlockHeader)
 				if err != nil {
-					r.logger.Error("WriteBlockInfo error", zap.Error(err))
+					utils.Logger().Error("WriteBlockInfo error", zap.Error(err))
 					break
 				}
-				r.logger.Info("WriteBlockInfo success", zap.Any("blockInfo", r.lastBlockHeader.String()))
+				utils.Logger().Info("WriteBlockInfo success", zap.Any("blockInfo", r.lastBlockHeader.String()))
 			}
 		case config := <-r.resetChan:
-			r.logger.Info("resetChan", zap.Any("config", config))
-			s3, err := NewS3Client(context.Background(), config.Bucket, config.EnvPrex)
+			topic := utils.Topic(config.ChainId, config.Env, true)
+			r.kafka.ResetTopic(topic)
+			infos, err := r.s3.ListHeaderStartAt(context.Background(), config.ChainId, config.Env,
+				r.lastBlockHeader.BlockNum-1, 5, r.lastBlockHeader.MsgOffset)
 			if err != nil {
-				r.logger.Error("NewS3Client error", zap.Error(err))
-				continue
+				utils.Logger().Error("ListHeaderStartAt error", zap.Error(err))
+				continue Loop
 			}
-			r.s3 = s3
-			r.lastBlockHeader.LastTime = 0
+			for _, info := range infos {
+				if info.BlockHash == r.lastBlockHeader.BlockHash {
+					r.lastBlockHeader = info
+					r.config = config
+					continue Loop
+				}
+			}
+			infos, err = r.s3.ListHeaderStartAt(context.Background(), config.ChainId, config.Env,
+				r.lastBlockHeader.BlockNum-128, 5, -1)
+			if err != nil {
+				utils.Logger().Error("ListHeaderStartAt error", zap.Error(err))
+				continue Loop
+			}
+			r.lastBlockHeader = infos[0]
+			r.config = config
+
 		case <-r.stopC:
 			r.stopdoneC <- struct{}{}
 			return

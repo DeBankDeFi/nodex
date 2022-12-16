@@ -1,0 +1,46 @@
+syntax = "proto3";
+package pb;
+
+option go_package = "pkg/utils/pb";
+
+
+import "block.proto";
+
+
+service S3Proxy {
+    rpc GetFile (GetFileRequest) returns (stream FileChunk) {}
+    rpc PutFile (stream FileChunk) returns (PutFileReply) {}
+    rpc ListHeaderStartAt(ListHeaderStartAtRequest) returns (ListHeaderStartAtReply) {}
+    rpc RemoveFiles(RemoveFilesRequest) returns (RemoveFilesReply) {}
+  }
+  
+  message GetFileRequest {
+    BlockInfo info = 1;
+  }
+  
+  message FileChunk {
+    BlockInfo info = 1;
+    bytes chunk = 2;
+  }
+
+  message PutFileReply {
+  }
+
+  message ListHeaderStartAtRequest {
+    string chain_id = 1;
+    string env = 2;
+    int64 block_num = 3;
+    int64 count_num = 4;
+    int64 after_msg_offset = 5;
+  }
+
+  message ListHeaderStartAtReply {
+    repeated BlockInfo infos = 1;
+  }
+
+  message RemoveFilesRequest {
+    repeated BlockInfo infos = 1;
+  }
+
+  message RemoveFilesReply {
+  }

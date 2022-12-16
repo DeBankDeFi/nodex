@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	"github.com/DeBankDeFi/db-replicator/pkg/utils"
-	"github.com/DeBankDeFi/db-replicator/pkg/utils/blockpb"
+	"github.com/DeBankDeFi/db-replicator/pkg/utils/pb"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -42,7 +42,7 @@ func (p *DBPool) Register(id int32, db DB, isMetaDB bool) {
 }
 
 // GetBlockInfo returns the last BlockInfo from metaDB.
-func (p *DBPool) GetBlockInfo() (header *blockpb.BlockInfo, err error) {
+func (p *DBPool) GetBlockInfo() (header *pb.BlockInfo, err error) {
 	p.RLock()
 	defer p.RUnlock()
 	if p.metaDBID == math.MinInt32 {
@@ -53,7 +53,7 @@ func (p *DBPool) GetBlockInfo() (header *blockpb.BlockInfo, err error) {
 	if err != nil && err != utils.ErrNotFound {
 		return nil, err
 	}
-	header = &blockpb.BlockInfo{
+	header = &pb.BlockInfo{
 		BlockNum: -1,
 	}
 	if err == utils.ErrNotFound || len(lastMsgHeadBuf) == 0 {
@@ -75,13 +75,13 @@ func (p *DBPool) GetDB(id int32) (db DB, err error) {
 	return db, nil
 }
 
-func (p *DBPool) Marshal(batchs []BatchWithID) (batchItems []*blockpb.BatchItem, err error) {
+func (p *DBPool) Marshal(batchs []BatchWithID) (batchItems []*pb.BatchItem, err error) {
 	p.RLock()
 	defer p.RUnlock()
 	for _, item := range batchs {
 		tmp := make([]byte, len(item.B.Dump()))
 		copy(tmp, item.B.Dump())
-		batchItems = append(batchItems, &blockpb.BatchItem{
+		batchItems = append(batchItems, &pb.BatchItem{
 			Id:   int32(item.ID),
 			Data: tmp,
 		})
@@ -89,7 +89,7 @@ func (p *DBPool) Marshal(batchs []BatchWithID) (batchItems []*blockpb.BatchItem,
 	return batchItems, nil
 }
 
-func (p *DBPool) WriteBlockInfo(header *blockpb.BlockInfo) (err error) {
+func (p *DBPool) WriteBlockInfo(header *pb.BlockInfo) (err error) {
 	p.RLock()
 	defer p.RUnlock()
 	if p.metaDBID == math.MinInt32 {
@@ -123,7 +123,7 @@ func (p *DBPool) WriteBatchs(batchs []BatchWithID) (err error) {
 	return nil
 }
 
-func (p *DBPool) WriteBatchItems(items []*blockpb.BatchItem) (err error) {
+func (p *DBPool) WriteBatchItems(items []*pb.BatchItem) (err error) {
 	p.RLock()
 	defer p.RUnlock()
 	for _, item := range items {

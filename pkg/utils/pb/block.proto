@@ -1,12 +1,21 @@
 syntax = "proto3";
-package blockpb;
+package pb;
 
-option go_package = "pkg/utils/blockpb";
+option go_package = "pkg/utils/pb";
 
 message BlockInfo {
-    int64 block_num = 1;
-    string block_hash = 2;
-    int64 last_time = 3;
+    string chain_id = 1;
+    string env = 2;
+    int64 block_num = 3;
+    string block_hash = 4;
+    int64 msg_offset = 5;
+    enum BlockType {
+        UNKNOWN = 0;
+        DATA = 1;
+        HEADER = 2;
+    }
+    BlockType block_type = 6;
+    int64 block_size = 7;
 }
 
 message BatchItem {
@@ -14,12 +23,7 @@ message BatchItem {
     bytes data = 2;
 }
 
-message BlockData {
-    BlockInfo info = 1;
-    repeated BatchItem batch_items = 2;
-}
-
-message BlockHeader {
+message Block {
     BlockInfo info = 1;
     repeated BatchItem batch_items = 2;
 }
