@@ -8,7 +8,7 @@ import (
 
 func main() {
 	var addr string
-	flag.StringVar(&addr, "addr", "0.0.0.0:8765", "listen address")
+	flag.StringVar(&addr, "s3_addr", "0.0.0.0:8765", "listen address")
 	flag.Parse()
 	err := s3.ListenAndServe(addr)
 	if err != nil {

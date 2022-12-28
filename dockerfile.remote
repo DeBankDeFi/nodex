@@ -1,0 +1,8 @@
+FROM golang:1.20rc1-buster AS build-env
+WORKDIR /root/remote
+COPY . .
+RUN go build -o remote ./cmd/remote
+
+FROM ubuntu:20.04
+COPY --from=build-env /root/remote/remote /usr/bin/remote
+ENTRYPOINT ["/usr/bin/remote"]

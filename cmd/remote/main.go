@@ -17,12 +17,12 @@ import (
 func main() {
 	var addr string
 	config := &utils.Config{}
-	flag.StringVar(&addr, "dbaddr", "0.0.0.0:7654", "db listen address")
-	flag.StringVar(&config.S3ProxyAddr, "S3ProxyAddr", "127.0.0.1:8765", "s3 listen address")
-	flag.StringVar(&config.KafkaAddr, "KafkaAddr", "127.0.0.1:9092", "kafka listen address")
-	flag.StringVar(&config.ChainId, "ChainId", "256", "chain id")
-	flag.StringVar(&config.Env, "Env", "test", "env")
-	flag.IntVar(&config.ReorgDeep, "ReorgDeep", 128, "reorg deep")
+	flag.StringVar(&addr, "db_addr", "0.0.0.0:7654", "db listen address")
+	flag.StringVar(&config.S3ProxyAddr, "s3proxy_addr", "127.0.0.1:8765", "s3 listen address")
+	flag.StringVar(&config.KafkaAddr, "kafka_addr", "127.0.0.1:9092", "kafka listen address")
+	flag.StringVar(&config.ChainId, "chain_id", "256", "chain id")
+	flag.StringVar(&config.Env, "env", "test", "env")
+	flag.IntVar(&config.ReorgDeep, "reorg_deep", 128, "reorg deep")
 	flag.Parse()
 	errChan := make(chan error)
 	stopChan := make(chan os.Signal, 1)

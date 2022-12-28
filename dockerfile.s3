@@ -1,0 +1,8 @@
+FROM golang:1.20rc1-buster AS build-env
+WORKDIR /root/s3
+COPY . .
+RUN go build -o s3 ./cmd/s3
+
+FROM ubuntu:20.04
+COPY --from=build-env /root/s3/s3 /usr/bin/s3
+ENTRYPOINT ["/usr/bin/s3"]

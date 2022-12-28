@@ -1,0 +1,42 @@
+name: "Build new artifacts"
+
+on:
+  pull_request:
+    branches:
+      - 'dev'
+  workflow_dispatch:
+
+env:
+  REGISTRY: 294354037686.dkr.ecr.ap-northeast-1.amazonaws.com
+
+jobs:
+  make-artifacts:
+    runs-on: [self-hosted, ops]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Set env
+        run: |
+          echo "REVISION=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+
+      - name: Docker build and push
+        run: |
+          DOCKER_BUILDKIT=1 docker build -t ${REGISTRY}/remotedb:${REVISION} -f dockerfile.remote .
+          docker push ${REGISTRY}/remotedb:${REVISION}
+          docker rmi ${REGISTRY}/remotedb:${REVISION}
+
+          DOCKER_BUILDKIT=1 docker build -t ${REGISTRY}/s3proxy:${REVISION} -f dockerfile.s3 .
+          docker push ${REGISTRY}/s3proxy:${REVISION}
+          docker rmi ${REGISTRY}/s3proxy:${REVISION}
+          
+      - name: comment PR
+        uses: unsplash/comment-on-pr@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          msg: ":tada: Image `${{ env.REGISTRY }}/remotedb:${{ env.REVISION }}` and Image `${{ env.REGISTRY }}/s3proxy:${{ env.REVISION }}` were builded"
+          check_for_duplicate_msg: true
+        continue-on-error: true
