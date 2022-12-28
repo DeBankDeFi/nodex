@@ -3,10 +3,8 @@ package s3
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"io"
 	"math"
-	"os"
 
 	"github.com/DeBankDeFi/db-replicator/pkg/utils"
 	"github.com/DeBankDeFi/db-replicator/pkg/utils/pb"
@@ -32,8 +30,8 @@ func NewClient(addr string) (*Client, error) {
 	}, nil
 }
 
-func (c *Client) GetFile(ctx context.Context, info *pb.BlockInfo) (header *pb.Block, err error) {
-	client, err := c.s3client.GetFile(ctx, &pb.GetFileRequest{
+func (c *Client) GetBlock(ctx context.Context, info *pb.BlockInfo) (header *pb.Block, err error) {
+	client, err := c.s3client.GetBlock(ctx, &pb.GetBlockRequest{
 		Info: info,
 	})
 	if err != nil {
@@ -61,22 +59,18 @@ func (c *Client) GetFile(ctx context.Context, info *pb.BlockInfo) (header *pb.Bl
 	return header, nil
 }
 
-func (c *Client) PutFile(ctx context.Context, block *pb.Block) (err error) {
+func (c *Client) PutBlock(ctx context.Context, block *pb.Block) (err error) {
 	data, err := proto.Marshal(block)
 	if err != nil {
 		return err
 	}
-	err = os.WriteFile(fmt.Sprintf("/tmp/wal/%d-%d",block.Info.BlockNum,block.Info.BlockType), data, 0644)
-	if err != nil {
-		return err
-	}
 	utils.Logger().Info("put file", zap.Int("size", len(data)), zap.Any("info", block.Info))
-	client, err := c.s3client.PutFile(ctx)
+	client, err := c.s3client.PutBlock(ctx)
 	if err != nil {
 		return err
 	}
 	block.Info.BlockSize = int64(len(data))
-	err = client.Send(&pb.FileChunk{
+	err = client.Send(&pb.BlockChunk{
 		Info: block.Info,
 	})
 	if err != nil {
@@ -92,7 +86,7 @@ func (c *Client) PutFile(ctx context.Context, block *pb.Block) (err error) {
 			}
 			return err
 		}
-		if err := client.Send(&pb.FileChunk{Chunk: chunk[:n]}); err != nil {
+		if err := client.Send(&pb.BlockChunk{Chunk: chunk[:n]}); err != nil {
 			return err
 		}
 	}
@@ -122,4 +116,22 @@ func (c *Client) RemoveFiles(ctx context.Context, infos []*pb.BlockInfo) error {
 		Infos: infos,
 	})
 	return err
+}
+
+func (c *Client) PutFile(ctx context.Context, key string, buf []byte) error {
+	_, err := c.s3client.PutFile(ctx, &pb.PutFileRequest{
+		Path: key,
+		Data: buf,
+	})
+	return err
+}
+
+func (c *Client) GetFile(ctx context.Context, key string) ([]byte, error) {
+	rsp, err := c.s3client.GetFile(ctx, &pb.GetFileRequest{
+		Path: key,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return rsp.Data, nil
 }

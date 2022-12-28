@@ -6,7 +6,7 @@ type Config struct {
 	KafkaAddr   string
 	ChainId     string
 	Env         string
-	ReorgDeep   int32
+	ReorgDeep   int
 }
 
 // NewDevelopmentConfig returns a Dev env Config with default values.

@@ -32,6 +32,10 @@ func BlockPrefix(info *pb.BlockInfo) string {
 		info.Env, info.BlockHash)
 }
 
+func DBInfoPrefix(chainId, env string) string {
+	return fmt.Sprintf("%s/%s/dbinfo", chainId, env)
+}
+
 func PrefixToHeaderInfo(key string) (info *pb.BlockInfo, err error) {
 	info = &pb.BlockInfo{}
 	keys := strings.Split(key, "/")

@@ -11,6 +11,7 @@ import (
 	"github.com/DeBankDeFi/db-replicator/pkg/utils"
 	"github.com/DeBankDeFi/db-replicator/pkg/utils/pb"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/proto"
 )
 
 type Reader struct {
@@ -23,7 +24,7 @@ type Reader struct {
 	kafka  *kafka.KafkaClient
 
 	lastBlockHeader *pb.BlockInfo
-	reorgDeep       int32
+	reorgDeep       int
 	resetChan       <-chan *utils.Config
 
 	running   bool
@@ -35,6 +36,25 @@ func NewReader(config *utils.Config, dbPool *db.DBPool, resetChan <-chan string)
 	s3, err := s3.NewClient(config.S3ProxyAddr)
 	if err != nil {
 		return nil, err
+	}
+
+	buf, err := s3.GetFile(context.Background(), utils.DBInfoPrefix(config.ChainId, config.Env))
+	if err != nil {
+		return nil, err
+	}
+
+	dbInfos := &pb.DBInfoList{}
+	if err := proto.Unmarshal(buf, dbInfos); err != nil {
+		return nil, err
+	}
+
+	utils.Logger().Info("NewReader", zap.Any("dbInfos", dbInfos))
+
+	for _, dbInfo := range dbInfos.DbInfos {
+		err = dbPool.Open(dbInfo)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	lastBlockHeader, err := dbPool.GetBlockInfo()
@@ -94,13 +114,13 @@ Loop:
 			}
 			for _, info := range infos {
 				utils.Logger().Info("new header", zap.Any("BlockNum", info.BlockNum), zap.Any("MsgOffset", r.lastBlockHeader.MsgOffset))
-				headerFile, err := r.s3.GetFile(context.Background(), info)
+				headerFile, err := r.s3.GetBlock(context.Background(), info)
 				if err != nil {
 					utils.Logger().Error("GetHeaderFile error", zap.Error(err), zap.Any("info", info))
 					break
 				}
 				info.BlockType = pb.BlockInfo_DATA
-				blockFile, err := r.s3.GetFile(context.Background(), info)
+				blockFile, err := r.s3.GetBlock(context.Background(), info)
 				if err != nil {
 					utils.Logger().Error("GetBlockFile error", zap.Error(err), zap.Any("hash", headerFile.Info.BlockHash))
 					break

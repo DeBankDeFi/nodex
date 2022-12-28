@@ -1,0 +1,149 @@
+syntax = "proto3";
+package pb;
+
+option go_package = "pkg/utils/pb";
+
+message OpenRequest {
+    string type = 1;
+    string path = 2;
+    bool isMetaDB = 3;
+}
+
+message OpenReply {
+    int32 id = 1;
+}
+
+message GetRequest {
+    int32 id = 1;
+    bytes key = 2;
+}
+
+message GetReply {
+    bytes value	= 1;
+    bool exist	= 2;
+}
+
+message HasRequest {
+    int32 id = 1;
+    bytes key = 2;
+}
+
+message HasReply {
+    bool exist = 1;
+}
+
+message StatRequest {
+    int32 id = 1;
+    string property = 2;
+}
+
+message StatReply {
+    string stat = 2;
+}
+
+message StatsRequest {
+    int32 id = 1;
+}
+
+message StatsReply {
+    map<string, string> data = 1;
+    int64 time_at		   = 2;
+}
+
+message CompactRequest {
+    int32 id = 1;
+    bytes start = 2;
+    bytes limit = 3;
+}
+
+message CompactReply {
+}
+
+message BatchRequest {
+    int32 id = 1;
+    bytes data = 2;
+    bool async = 3;
+}
+
+message BatchReply {
+}
+
+message PutRequest {
+    int32 id = 1;
+    bytes key = 2;
+    bytes value = 3;
+    bool async = 4;
+}
+
+message PutReply {
+}
+
+message DelRequest {
+    int32 id = 1;
+    bytes key = 2;
+    bool async = 3;
+}
+
+message DelReply {
+}
+
+message IterRequest {
+    int32 id = 1;
+    bytes start = 2;
+    bytes limit = 3;
+    bool reverse = 4;
+}
+
+message IterReply {
+    bytes key	= 1;
+    bytes value	= 2;
+    bool is_end	= 3;
+    string error = 4;
+}
+
+message CloseRequest {
+    int32 id = 1;
+}
+
+message CloseReply {
+}
+
+message SnapshotOpenRequest {
+}
+
+message SnapshotOpenReply {
+}
+
+message SnapshotRequest {
+    int32 id = 1;
+    oneof req {
+        SnapshotOpenRequest open = 2;
+        GetRequest get = 3;
+        HasRequest has = 4;
+        CloseRequest close = 5;
+    }
+}
+
+message SnapshotReply {
+    oneof reply {
+        SnapshotOpenReply open = 2;
+        GetReply get = 3;
+        HasReply has = 4;
+        CloseReply close = 5;
+    }
+}
+
+service RemoteDB {
+    rpc open(OpenRequest) returns (OpenReply) {}
+    rpc get(GetRequest) returns (GetReply) {}
+    rpc has(HasRequest) returns (HasReply) {}
+    rpc put(PutRequest) returns (PutReply) {}
+    rpc del(DelRequest) returns (DelReply) {}
+    rpc stat(StatRequest) returns (StatReply) {}
+    rpc stats(StatsRequest) returns (StatsReply) {}
+    rpc compact(CompactRequest) returns (CompactReply) {}
+    rpc batch(BatchRequest) returns (BatchReply) {}
+    rpc close(CloseRequest) returns (CloseReply) {}
+    rpc iter(IterRequest) returns (stream IterReply) {}
+    rpc snapshot(stream SnapshotRequest) returns (stream SnapshotReply) {}
+}

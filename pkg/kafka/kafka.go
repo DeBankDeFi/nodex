@@ -31,18 +31,19 @@ func NewKafkaClient(topic string, readerLastOffset int64, addrs ...string) (*Kaf
 			topic: {
 				{
 					Partition: 0,
-					Timestamp: kafka.LastOffset,
+					Timestamp:    kafka.LastOffset,
 				},
 			},
 		},
 	},
 	)
+	utils.Logger().Info("NewKafkaClient", zap.Any("rsp", rsp), zap.Any("err", err))
 	if err != nil {
 		return nil, err
 	}
 	return &KafkaClient{
 		client:           client,
-		writerLastOffset: rsp.Topics[topic][0].LastOffset - 1,
+		writerLastOffset: rsp.Topics[topic][0].LastOffset-1,
 		readerLastOffset: readerLastOffset,
 		topic:            topic,
 	}, nil

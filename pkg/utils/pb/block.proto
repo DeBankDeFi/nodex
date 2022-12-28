@@ -27,3 +27,14 @@ message Block {
     BlockInfo info = 1;
     repeated BatchItem batch_items = 2;
 }
+
+message DBInfo {
+    int32 id = 1;
+    string db_type = 2;
+    string db_path = 3;
+    bool is_meta = 4;
+}
+
+message DBInfoList {
+    repeated DBInfo db_infos = 1;
+}

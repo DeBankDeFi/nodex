@@ -1,9 +1,9 @@
 package utils
 
 var (
-	ErrNotFound = New(NotFoundErrorCode, "not found")
-
 	ErrNoMetaDBRegistered = New(NoMetaDBRegisteredErrorCode, "no meta db registered")
+
+	ErrMetaDBAlreadyRegistered = New(MetaDBAlreadyRegisteredErrorCode, "meta db already registered")
 
 	ErrWriterStopped = New(WriterStoppedErrorCode, "writer stopped")
 
@@ -15,13 +15,14 @@ var (
 )
 
 const (
-	UnknownErrorCode            = -1
-	NotFoundErrorCode           = 1000
-	NoMetaDBRegisteredErrorCode = 1001
-	WriterStoppedErrorCode      = 1002
-	ReadInvalidHeaderErrorCode  = 1003
-	AwsS3ErrorCode              = 1004
-	WriterRecoveryErrorCode     = 1005
+	UnknownErrorCode                 = -1
+	NoMetaDBRegisteredErrorCode      = 1001
+	WriterStoppedErrorCode           = 1002
+	ReadInvalidHeaderErrorCode       = 1003
+	AwsS3ErrorCode                   = 1004
+	WriterRecoveryErrorCode          = 1005
+	RemoteDBErrorCode                = 1006
+	MetaDBAlreadyRegisteredErrorCode = 1007
 )
 
 func New(code int, text string) error {

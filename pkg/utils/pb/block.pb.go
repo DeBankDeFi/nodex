@@ -274,6 +274,124 @@ func (x *Block) GetBatchItems() []*BatchItem {
 	return nil
 }
 
+type DBInfo struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Id     int32  `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
+	DbType string `protobuf:"bytes,2,opt,name=db_type,json=dbType,proto3" json:"db_type,omitempty"`
+	DbPath string `protobuf:"bytes,3,opt,name=db_path,json=dbPath,proto3" json:"db_path,omitempty"`
+	IsMeta bool   `protobuf:"varint,4,opt,name=is_meta,json=isMeta,proto3" json:"is_meta,omitempty"`
+}
+
+func (x *DBInfo) Reset() {
+	*x = DBInfo{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_block_proto_msgTypes[3]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *DBInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DBInfo) ProtoMessage() {}
+
+func (x *DBInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_block_proto_msgTypes[3]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DBInfo.ProtoReflect.Descriptor instead.
+func (*DBInfo) Descriptor() ([]byte, []int) {
+	return file_block_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *DBInfo) GetId() int32 {
+	if x != nil {
+		return x.Id
+	}
+	return 0
+}
+
+func (x *DBInfo) GetDbType() string {
+	if x != nil {
+		return x.DbType
+	}
+	return ""
+}
+
+func (x *DBInfo) GetDbPath() string {
+	if x != nil {
+		return x.DbPath
+	}
+	return ""
+}
+
+func (x *DBInfo) GetIsMeta() bool {
+	if x != nil {
+		return x.IsMeta
+	}
+	return false
+}
+
+type DBInfoList struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	DbInfos []*DBInfo `protobuf:"bytes,1,rep,name=db_infos,json=dbInfos,proto3" json:"db_infos,omitempty"`
+}
+
+func (x *DBInfoList) Reset() {
+	*x = DBInfoList{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_block_proto_msgTypes[4]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *DBInfoList) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DBInfoList) ProtoMessage() {}
+
+func (x *DBInfoList) ProtoReflect() protoreflect.Message {
+	mi := &file_block_proto_msgTypes[4]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DBInfoList.ProtoReflect.Descriptor instead.
+func (*DBInfoList) Descriptor() ([]byte, []int) {
+	return file_block_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *DBInfoList) GetDbInfos() []*DBInfo {
+	if x != nil {
+		return x.DbInfos
+	}
+	return nil
+}
+
 var File_block_proto protoreflect.FileDescriptor
 
 var file_block_proto_rawDesc = []byte{
@@ -304,9 +422,18 @@ var file_block_proto_rawDesc = []byte{
 	0x6b, 0x49, 0x6e, 0x66, 0x6f, 0x52, 0x04, 0x69, 0x6e, 0x66, 0x6f, 0x12, 0x2e, 0x0a, 0x0b, 0x62,
 	0x61, 0x74, 0x63, 0x68, 0x5f, 0x69, 0x74, 0x65, 0x6d, 0x73, 0x18, 0x02, 0x20, 0x03, 0x28, 0x0b,
 	0x32, 0x0d, 0x2e, 0x70, 0x62, 0x2e, 0x42, 0x61, 0x74, 0x63, 0x68, 0x49, 0x74, 0x65, 0x6d, 0x52,
-	0x0a, 0x62, 0x61, 0x74, 0x63, 0x68, 0x49, 0x74, 0x65, 0x6d, 0x73, 0x42, 0x0e, 0x5a, 0x0c, 0x70,
-	0x6b, 0x67, 0x2f, 0x75, 0x74, 0x69, 0x6c, 0x73, 0x2f, 0x70, 0x62, 0x62, 0x06, 0x70, 0x72, 0x6f,
-	0x74, 0x6f, 0x33,
+	0x0a, 0x62, 0x61, 0x74, 0x63, 0x68, 0x49, 0x74, 0x65, 0x6d, 0x73, 0x22, 0x63, 0x0a, 0x06, 0x44,
+	0x42, 0x49, 0x6e, 0x66, 0x6f, 0x12, 0x0e, 0x0a, 0x02, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28,
+	0x05, 0x52, 0x02, 0x69, 0x64, 0x12, 0x17, 0x0a, 0x07, 0x64, 0x62, 0x5f, 0x74, 0x79, 0x70, 0x65,
+	0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x64, 0x62, 0x54, 0x79, 0x70, 0x65, 0x12, 0x17,
+	0x0a, 0x07, 0x64, 0x62, 0x5f, 0x70, 0x61, 0x74, 0x68, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52,
+	0x06, 0x64, 0x62, 0x50, 0x61, 0x74, 0x68, 0x12, 0x17, 0x0a, 0x07, 0x69, 0x73, 0x5f, 0x6d, 0x65,
+	0x74, 0x61, 0x18, 0x04, 0x20, 0x01, 0x28, 0x08, 0x52, 0x06, 0x69, 0x73, 0x4d, 0x65, 0x74, 0x61,
+	0x22, 0x33, 0x0a, 0x0a, 0x44, 0x42, 0x49, 0x6e, 0x66, 0x6f, 0x4c, 0x69, 0x73, 0x74, 0x12, 0x25,
+	0x0a, 0x08, 0x64, 0x62, 0x5f, 0x69, 0x6e, 0x66, 0x6f, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b,
+	0x32, 0x0a, 0x2e, 0x70, 0x62, 0x2e, 0x44, 0x42, 0x49, 0x6e, 0x66, 0x6f, 0x52, 0x07, 0x64, 0x62,
+	0x49, 0x6e, 0x66, 0x6f, 0x73, 0x42, 0x0e, 0x5a, 0x0c, 0x70, 0x6b, 0x67, 0x2f, 0x75, 0x74, 0x69,
+	0x6c, 0x73, 0x2f, 0x70, 0x62, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -322,22 +449,25 @@ func file_block_proto_rawDescGZIP() []byte {
 }
 
 var file_block_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_block_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_block_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_block_proto_goTypes = []interface{}{
 	(BlockInfo_BlockType)(0), // 0: pb.BlockInfo.BlockType
 	(*BlockInfo)(nil),        // 1: pb.BlockInfo
 	(*BatchItem)(nil),        // 2: pb.BatchItem
 	(*Block)(nil),            // 3: pb.Block
+	(*DBInfo)(nil),           // 4: pb.DBInfo
+	(*DBInfoList)(nil),       // 5: pb.DBInfoList
 }
 var file_block_proto_depIdxs = []int32{
 	0, // 0: pb.BlockInfo.block_type:type_name -> pb.BlockInfo.BlockType
 	1, // 1: pb.Block.info:type_name -> pb.BlockInfo
 	2, // 2: pb.Block.batch_items:type_name -> pb.BatchItem
-	3, // [3:3] is the sub-list for method output_type
-	3, // [3:3] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	4, // 3: pb.DBInfoList.db_infos:type_name -> pb.DBInfo
+	4, // [4:4] is the sub-list for method output_type
+	4, // [4:4] is the sub-list for method input_type
+	4, // [4:4] is the sub-list for extension type_name
+	4, // [4:4] is the sub-list for extension extendee
+	0, // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_block_proto_init() }
@@ -382,6 +512,30 @@ func file_block_proto_init() {
 				return nil
 			}
 		}
+		file_block_proto_msgTypes[3].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*DBInfo); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_block_proto_msgTypes[4].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*DBInfoList); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -389,7 +543,7 @@ func file_block_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_block_proto_rawDesc,
 			NumEnums:      1,
-			NumMessages:   3,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

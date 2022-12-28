@@ -8,19 +8,37 @@ import "block.proto";
 
 
 service S3Proxy {
-    rpc GetFile (GetFileRequest) returns (stream FileChunk) {}
-    rpc PutFile (stream FileChunk) returns (PutFileReply) {}
+    rpc GetBlock (GetBlockRequest) returns (stream BlockChunk) {}
+    rpc PutBlock (stream BlockChunk) returns (PutBlockReply) {}
+    rpc GetFile(GetFileRequest) returns (GetFileReply) {}
+    rpc PutFile(PutFileRequest) returns (PutFileReply) {}
     rpc ListHeaderStartAt(ListHeaderStartAtRequest) returns (ListHeaderStartAtReply) {}
     rpc RemoveFiles(RemoveFilesRequest) returns (RemoveFilesReply) {}
   }
   
-  message GetFileRequest {
+  message GetBlockRequest {
     BlockInfo info = 1;
   }
   
-  message FileChunk {
+  message BlockChunk {
     BlockInfo info = 1;
     bytes chunk = 2;
+  }
+
+  message PutBlockReply {
+  }
+
+  message GetFileRequest {
+    string path = 1;
+  }
+
+  message GetFileReply {
+    bytes data = 1;
+  }
+
+  message PutFileRequest {
+    string path = 1;
+    bytes data = 2;
   }
 
   message PutFileReply {

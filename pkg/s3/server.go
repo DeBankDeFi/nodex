@@ -58,7 +58,7 @@ func NewServer() (*grpc.Server, error) {
 	return s, nil
 }
 
-func (s *server) s3GetFile(key string) (buf []byte, err error) {
+func (s *server) s3GetBlock(key string) (buf []byte, err error) {
 	result, err := s.s3.GetObject(context.Background(), &s3.GetObjectInput{
 		Bucket: aws.String(BucketName),
 		Key:    aws.String(key),
@@ -94,7 +94,7 @@ func (s *server) getOrInsertLru(prefix string) (lru *utils.Cache) {
 	return lru
 }
 
-func (s *server) GetFile(req *pb.GetFileRequest, client pb.S3Proxy_GetFileServer) error {
+func (s *server) GetBlock(req *pb.GetBlockRequest, client pb.S3Proxy_GetBlockServer) error {
 	prefix := utils.CommonPrefix(req.Info.ChainId, req.Info.Env, req.Info.BlockType == pb.BlockInfo_HEADER)
 	lru := s.getOrInsertLru(prefix)
 	key := ""
@@ -103,9 +103,9 @@ func (s *server) GetFile(req *pb.GetFileRequest, client pb.S3Proxy_GetFileServer
 	} else {
 		key = utils.HeaderPrefix(req.Info)
 	}
-	buf, err := lru.Get(key, req.Info.BlockNum, s.s3GetFile)
+	buf, err := lru.Get(key, req.Info.BlockNum, s.s3GetBlock)
 	if err != nil {
-		return status.Errorf(utils.AwsS3ErrorCode, "GetFile failed, err : %v", err)
+		return status.Errorf(utils.AwsS3ErrorCode, "GetBlock failed, err : %v", err)
 	}
 	chunk := make([]byte, ChunkSize)
 	reader := bytes.NewReader(buf)
@@ -115,19 +115,19 @@ func (s *server) GetFile(req *pb.GetFileRequest, client pb.S3Proxy_GetFileServer
 			if err == io.EOF {
 				break
 			}
-			return status.Errorf(utils.AwsS3ErrorCode, "GetFile failed, err : %v", err)
+			return status.Errorf(utils.AwsS3ErrorCode, "GetBlock failed, err : %v", err)
 		}
-		if err := client.Send(&pb.FileChunk{Chunk: chunk[:n]}); err != nil {
-			return status.Errorf(utils.AwsS3ErrorCode, "GetFile failed, err : %v", err)
+		if err := client.Send(&pb.BlockChunk{Chunk: chunk[:n]}); err != nil {
+			return status.Errorf(utils.AwsS3ErrorCode, "GetBlock failed, err : %v", err)
 		}
 	}
 	return nil
 }
 
-func (s *server) PutFile(client pb.S3Proxy_PutFileServer) error {
+func (s *server) PutBlock(client pb.S3Proxy_PutBlockServer) error {
 	chunk, err := client.Recv()
 	if err != nil {
-		return status.Errorf(utils.AwsS3ErrorCode, "PutFile failed, err : %v", err)
+		return status.Errorf(utils.AwsS3ErrorCode, "PutBlock failed, err : %v", err)
 	}
 	buf := make([]byte, int(chunk.Info.BlockSize))
 	buf = buf[:0]
@@ -140,7 +140,7 @@ func (s *server) PutFile(client pb.S3Proxy_PutFileServer) error {
 			if err == io.EOF {
 				break
 			}
-			return status.Errorf(utils.AwsS3ErrorCode, "PutFile failed, err : %v", err)
+			return status.Errorf(utils.AwsS3ErrorCode, "PutBlock failed, err : %v", err)
 		}
 		if len(chunk.Chunk) > 0 {
 			buffer.Write(chunk.Chunk)
@@ -159,13 +159,44 @@ func (s *server) PutFile(client pb.S3Proxy_PutFileServer) error {
 		Body:   bytes.NewReader(buffer.Bytes()),
 	})
 	if err != nil {
-		return status.Errorf(utils.AwsS3ErrorCode, "PutFile failed, err : %v", err)
+		return status.Errorf(utils.AwsS3ErrorCode, "PutBlock failed, err : %v", err)
 	}
-	utils.Logger().Info("PutFile", zap.String("key", key), zap.Any("rsp", rsp))
+	utils.Logger().Info("PutBlock", zap.String("key", key), zap.Any("rsp", rsp))
 	lru := s.getOrInsertLru(prefix)
 	lru.Insert(key, buffer.Bytes(), info.BlockNum)
-	client.SendAndClose(&pb.PutFileReply{})
+	client.SendAndClose(&pb.PutBlockReply{})
 	return nil
+}
+
+func (s *server) GetFile(ctx context.Context, req *pb.GetFileRequest) (*pb.GetFileReply, error) {
+	result, err := s.s3.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(BucketName),
+		Key:    aws.String(req.Path),
+	})
+	if result != nil {
+		defer result.Body.Close()
+	}
+	if err != nil {
+		return nil, status.Errorf(utils.AwsS3ErrorCode, "GetFile failed, err : %v", err)
+	}
+	buf, err := io.ReadAll(result.Body)
+	if err != nil {
+		return nil, status.Errorf(utils.AwsS3ErrorCode, "GetFile failed, err : %v", err)
+	}
+	return &pb.GetFileReply{Data: buf}, nil
+}
+
+func (s *server) PutFile(ctx context.Context, req *pb.PutFileRequest) (*pb.PutFileReply, error) {
+	rsp, err := s.s3.PutObject(ctx, &s3.PutObjectInput{
+		Bucket: aws.String(BucketName),
+		Key:    aws.String(req.Path),
+		Body:   bytes.NewReader(req.Data),
+	})
+	if err != nil {
+		return nil, status.Errorf(utils.AwsS3ErrorCode, "PutFile failed, err : %v", err)
+	}
+	utils.Logger().Info("PutFile", zap.String("key", req.Path), zap.Any("rsp", rsp))
+	return &pb.PutFileReply{}, nil
 }
 
 func (s *server) ListHeaderStartAt(ctx context.Context, req *pb.ListHeaderStartAtRequest) (*pb.ListHeaderStartAtReply, error) {

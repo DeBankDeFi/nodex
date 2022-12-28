@@ -22,8 +22,10 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type S3ProxyClient interface {
-	GetFile(ctx context.Context, in *GetFileRequest, opts ...grpc.CallOption) (S3Proxy_GetFileClient, error)
-	PutFile(ctx context.Context, opts ...grpc.CallOption) (S3Proxy_PutFileClient, error)
+	GetBlock(ctx context.Context, in *GetBlockRequest, opts ...grpc.CallOption) (S3Proxy_GetBlockClient, error)
+	PutBlock(ctx context.Context, opts ...grpc.CallOption) (S3Proxy_PutBlockClient, error)
+	GetFile(ctx context.Context, in *GetFileRequest, opts ...grpc.CallOption) (*GetFileReply, error)
+	PutFile(ctx context.Context, in *PutFileRequest, opts ...grpc.CallOption) (*PutFileReply, error)
 	ListHeaderStartAt(ctx context.Context, in *ListHeaderStartAtRequest, opts ...grpc.CallOption) (*ListHeaderStartAtReply, error)
 	RemoveFiles(ctx context.Context, in *RemoveFilesRequest, opts ...grpc.CallOption) (*RemoveFilesReply, error)
 }
@@ -36,12 +38,12 @@ func NewS3ProxyClient(cc grpc.ClientConnInterface) S3ProxyClient {
 	return &s3ProxyClient{cc}
 }
 
-func (c *s3ProxyClient) GetFile(ctx context.Context, in *GetFileRequest, opts ...grpc.CallOption) (S3Proxy_GetFileClient, error) {
-	stream, err := c.cc.NewStream(ctx, &S3Proxy_ServiceDesc.Streams[0], "/pb.S3Proxy/GetFile", opts...)
+func (c *s3ProxyClient) GetBlock(ctx context.Context, in *GetBlockRequest, opts ...grpc.CallOption) (S3Proxy_GetBlockClient, error) {
+	stream, err := c.cc.NewStream(ctx, &S3Proxy_ServiceDesc.Streams[0], "/pb.S3Proxy/GetBlock", opts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &s3ProxyGetFileClient{stream}
+	x := &s3ProxyGetBlockClient{stream}
 	if err := x.ClientStream.SendMsg(in); err != nil {
 		return nil, err
 	}
@@ -51,55 +53,73 @@ func (c *s3ProxyClient) GetFile(ctx context.Context, in *GetFileRequest, opts ..
 	return x, nil
 }
 
-type S3Proxy_GetFileClient interface {
-	Recv() (*FileChunk, error)
+type S3Proxy_GetBlockClient interface {
+	Recv() (*BlockChunk, error)
 	grpc.ClientStream
 }
 
-type s3ProxyGetFileClient struct {
+type s3ProxyGetBlockClient struct {
 	grpc.ClientStream
 }
 
-func (x *s3ProxyGetFileClient) Recv() (*FileChunk, error) {
-	m := new(FileChunk)
+func (x *s3ProxyGetBlockClient) Recv() (*BlockChunk, error) {
+	m := new(BlockChunk)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
 	return m, nil
 }
 
-func (c *s3ProxyClient) PutFile(ctx context.Context, opts ...grpc.CallOption) (S3Proxy_PutFileClient, error) {
-	stream, err := c.cc.NewStream(ctx, &S3Proxy_ServiceDesc.Streams[1], "/pb.S3Proxy/PutFile", opts...)
+func (c *s3ProxyClient) PutBlock(ctx context.Context, opts ...grpc.CallOption) (S3Proxy_PutBlockClient, error) {
+	stream, err := c.cc.NewStream(ctx, &S3Proxy_ServiceDesc.Streams[1], "/pb.S3Proxy/PutBlock", opts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &s3ProxyPutFileClient{stream}
+	x := &s3ProxyPutBlockClient{stream}
 	return x, nil
 }
 
-type S3Proxy_PutFileClient interface {
-	Send(*FileChunk) error
-	CloseAndRecv() (*PutFileReply, error)
+type S3Proxy_PutBlockClient interface {
+	Send(*BlockChunk) error
+	CloseAndRecv() (*PutBlockReply, error)
 	grpc.ClientStream
 }
 
-type s3ProxyPutFileClient struct {
+type s3ProxyPutBlockClient struct {
 	grpc.ClientStream
 }
 
-func (x *s3ProxyPutFileClient) Send(m *FileChunk) error {
+func (x *s3ProxyPutBlockClient) Send(m *BlockChunk) error {
 	return x.ClientStream.SendMsg(m)
 }
 
-func (x *s3ProxyPutFileClient) CloseAndRecv() (*PutFileReply, error) {
+func (x *s3ProxyPutBlockClient) CloseAndRecv() (*PutBlockReply, error) {
 	if err := x.ClientStream.CloseSend(); err != nil {
 		return nil, err
 	}
-	m := new(PutFileReply)
+	m := new(PutBlockReply)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
 	return m, nil
+}
+
+func (c *s3ProxyClient) GetFile(ctx context.Context, in *GetFileRequest, opts ...grpc.CallOption) (*GetFileReply, error) {
+	out := new(GetFileReply)
+	err := c.cc.Invoke(ctx, "/pb.S3Proxy/GetFile", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *s3ProxyClient) PutFile(ctx context.Context, in *PutFileRequest, opts ...grpc.CallOption) (*PutFileReply, error) {
+	out := new(PutFileReply)
+	err := c.cc.Invoke(ctx, "/pb.S3Proxy/PutFile", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *s3ProxyClient) ListHeaderStartAt(ctx context.Context, in *ListHeaderStartAtRequest, opts ...grpc.CallOption) (*ListHeaderStartAtReply, error) {
@@ -124,8 +144,10 @@ func (c *s3ProxyClient) RemoveFiles(ctx context.Context, in *RemoveFilesRequest,
 // All implementations must embed UnimplementedS3ProxyServer
 // for forward compatibility
 type S3ProxyServer interface {
-	GetFile(*GetFileRequest, S3Proxy_GetFileServer) error
-	PutFile(S3Proxy_PutFileServer) error
+	GetBlock(*GetBlockRequest, S3Proxy_GetBlockServer) error
+	PutBlock(S3Proxy_PutBlockServer) error
+	GetFile(context.Context, *GetFileRequest) (*GetFileReply, error)
+	PutFile(context.Context, *PutFileRequest) (*PutFileReply, error)
 	ListHeaderStartAt(context.Context, *ListHeaderStartAtRequest) (*ListHeaderStartAtReply, error)
 	RemoveFiles(context.Context, *RemoveFilesRequest) (*RemoveFilesReply, error)
 	mustEmbedUnimplementedS3ProxyServer()
@@ -135,11 +157,17 @@ type S3ProxyServer interface {
 type UnimplementedS3ProxyServer struct {
 }
 
-func (UnimplementedS3ProxyServer) GetFile(*GetFileRequest, S3Proxy_GetFileServer) error {
-	return status.Errorf(codes.Unimplemented, "method GetFile not implemented")
+func (UnimplementedS3ProxyServer) GetBlock(*GetBlockRequest, S3Proxy_GetBlockServer) error {
+	return status.Errorf(codes.Unimplemented, "method GetBlock not implemented")
 }
-func (UnimplementedS3ProxyServer) PutFile(S3Proxy_PutFileServer) error {
-	return status.Errorf(codes.Unimplemented, "method PutFile not implemented")
+func (UnimplementedS3ProxyServer) PutBlock(S3Proxy_PutBlockServer) error {
+	return status.Errorf(codes.Unimplemented, "method PutBlock not implemented")
+}
+func (UnimplementedS3ProxyServer) GetFile(context.Context, *GetFileRequest) (*GetFileReply, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetFile not implemented")
+}
+func (UnimplementedS3ProxyServer) PutFile(context.Context, *PutFileRequest) (*PutFileReply, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PutFile not implemented")
 }
 func (UnimplementedS3ProxyServer) ListHeaderStartAt(context.Context, *ListHeaderStartAtRequest) (*ListHeaderStartAtReply, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListHeaderStartAt not implemented")
@@ -160,51 +188,87 @@ func RegisterS3ProxyServer(s grpc.ServiceRegistrar, srv S3ProxyServer) {
 	s.RegisterService(&S3Proxy_ServiceDesc, srv)
 }
 
-func _S3Proxy_GetFile_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(GetFileRequest)
+func _S3Proxy_GetBlock_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(GetBlockRequest)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(S3ProxyServer).GetFile(m, &s3ProxyGetFileServer{stream})
+	return srv.(S3ProxyServer).GetBlock(m, &s3ProxyGetBlockServer{stream})
 }
 
-type S3Proxy_GetFileServer interface {
-	Send(*FileChunk) error
+type S3Proxy_GetBlockServer interface {
+	Send(*BlockChunk) error
 	grpc.ServerStream
 }
 
-type s3ProxyGetFileServer struct {
+type s3ProxyGetBlockServer struct {
 	grpc.ServerStream
 }
 
-func (x *s3ProxyGetFileServer) Send(m *FileChunk) error {
+func (x *s3ProxyGetBlockServer) Send(m *BlockChunk) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func _S3Proxy_PutFile_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(S3ProxyServer).PutFile(&s3ProxyPutFileServer{stream})
+func _S3Proxy_PutBlock_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(S3ProxyServer).PutBlock(&s3ProxyPutBlockServer{stream})
 }
 
-type S3Proxy_PutFileServer interface {
-	SendAndClose(*PutFileReply) error
-	Recv() (*FileChunk, error)
+type S3Proxy_PutBlockServer interface {
+	SendAndClose(*PutBlockReply) error
+	Recv() (*BlockChunk, error)
 	grpc.ServerStream
 }
 
-type s3ProxyPutFileServer struct {
+type s3ProxyPutBlockServer struct {
 	grpc.ServerStream
 }
 
-func (x *s3ProxyPutFileServer) SendAndClose(m *PutFileReply) error {
+func (x *s3ProxyPutBlockServer) SendAndClose(m *PutBlockReply) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func (x *s3ProxyPutFileServer) Recv() (*FileChunk, error) {
-	m := new(FileChunk)
+func (x *s3ProxyPutBlockServer) Recv() (*BlockChunk, error) {
+	m := new(BlockChunk)
 	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
 	return m, nil
+}
+
+func _S3Proxy_GetFile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetFileRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(S3ProxyServer).GetFile(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/pb.S3Proxy/GetFile",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(S3ProxyServer).GetFile(ctx, req.(*GetFileRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _S3Proxy_PutFile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PutFileRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(S3ProxyServer).PutFile(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/pb.S3Proxy/PutFile",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(S3ProxyServer).PutFile(ctx, req.(*PutFileRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _S3Proxy_ListHeaderStartAt_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -251,6 +315,14 @@ var S3Proxy_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*S3ProxyServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
+			MethodName: "GetFile",
+			Handler:    _S3Proxy_GetFile_Handler,
+		},
+		{
+			MethodName: "PutFile",
+			Handler:    _S3Proxy_PutFile_Handler,
+		},
+		{
 			MethodName: "ListHeaderStartAt",
 			Handler:    _S3Proxy_ListHeaderStartAt_Handler,
 		},
@@ -261,13 +333,13 @@ var S3Proxy_ServiceDesc = grpc.ServiceDesc{
 	},
 	Streams: []grpc.StreamDesc{
 		{
-			StreamName:    "GetFile",
-			Handler:       _S3Proxy_GetFile_Handler,
+			StreamName:    "GetBlock",
+			Handler:       _S3Proxy_GetBlock_Handler,
 			ServerStreams: true,
 		},
 		{
-			StreamName:    "PutFile",
-			Handler:       _S3Proxy_PutFile_Handler,
+			StreamName:    "PutBlock",
+			Handler:       _S3Proxy_PutBlock_Handler,
 			ClientStreams: true,
 		},
 	},

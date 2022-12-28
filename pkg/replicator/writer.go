@@ -9,6 +9,7 @@ import (
 	"github.com/DeBankDeFi/db-replicator/pkg/s3"
 	"github.com/DeBankDeFi/db-replicator/pkg/utils"
 	"github.com/DeBankDeFi/db-replicator/pkg/utils/pb"
+	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -49,6 +50,8 @@ func NewWriter(config *utils.Config, dbPool *db.DBPool) (writer *Writer, err err
 	if err != nil {
 		return nil, err
 	}
+	
+	utils.Logger().Info("NewWriter", zap.Any("lastBlockHeader", lastBlockHeader))
 
 	writer = &Writer{
 		config:          config,
@@ -72,16 +75,17 @@ func (w *Writer) Recovery() error {
 	if err != nil {
 		return err
 	}
+	utils.Logger().Info("Recovery", zap.Any("lastBlockHeader", w.lastBlockHeader), zap.Any("info", info))
 	if len(info) > 0 {
 		if len(info) != 1 {
 			return utils.ErrWriterRecovey
 		}
 		w.lastBlockHeader = info[0]
-		headerFile, err := w.s3.GetFile(context.Background(), w.lastBlockHeader)
+		headerFile, err := w.s3.GetBlock(context.Background(), w.lastBlockHeader)
 		if err != nil {
 			return err
 		}
-		blockFile, err := w.s3.GetFile(context.Background(), &pb.BlockInfo{
+		blockFile, err := w.s3.GetBlock(context.Background(), &pb.BlockInfo{
 			ChainId:   w.config.ChainId,
 			Env:       w.config.Env,
 			BlockHash: headerFile.Info.BlockHash,
@@ -105,6 +109,8 @@ func (w *Writer) Recovery() error {
 		}
 	}
 	lastWriteOffset := w.kafka.LastWriterOffset()
+	utils.Logger().Info("Recovery", zap.Int64("lastWriteOffset", lastWriteOffset), 
+		zap.Int64("lastBlockHeader.MsgOffset", w.lastBlockHeader.MsgOffset))
 	if lastWriteOffset != w.lastBlockHeader.MsgOffset {
 		if lastWriteOffset != w.lastBlockHeader.MsgOffset-1 {
 			return utils.ErrWriterRecovey
@@ -114,6 +120,24 @@ func (w *Writer) Recovery() error {
 			return err
 		}
 	}
+	dbInfos, err := w.dbPool.GetDBInfo()
+	if err != nil {
+		utils.Logger().Error("GetDBInfo", zap.Error(err))
+		return err
+	}
+	utils.Logger().Info("Recovery", zap.Any("dbInfos", dbInfos))
+	buf, err := proto.Marshal(dbInfos)
+	if err != nil {
+		utils.Logger().Error("Marshal", zap.Error(err))
+		return err
+	}
+
+	err = w.s3.PutFile(context.Background(), utils.DBInfoPrefix(w.config.ChainId, w.config.Env), buf)
+	if err != nil {
+		utils.Logger().Error("PutFile", zap.Error(err))
+		return err
+	}
+	utils.Logger().Info("Recovery sucess")
 	return nil
 }
 
@@ -139,7 +163,7 @@ func (w *Writer) WriteBlockToS3(blockNum int64, blockHash string, batchs []db.Ba
 	}
 	Block.Info.BlockSize = int64(proto.Size(Block))
 	// commit to s3.
-	err = w.s3.PutFile(context.Background(), Block)
+	err = w.s3.PutBlock(context.Background(), Block)
 	if err != nil {
 		return err
 	}
@@ -181,7 +205,7 @@ func (w *Writer) WriteBlockHeaderToS3(blockNum int64, blockHash string, batchs [
 		BatchItems: batchItems,
 	}
 	// commit to s3.
-	err = w.s3.PutFile(context.Background(), blockHeader)
+	err = w.s3.PutBlock(context.Background(), blockHeader)
 	if err != nil {
 		return err
 	}
