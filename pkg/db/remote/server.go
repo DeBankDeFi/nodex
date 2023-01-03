@@ -11,7 +11,6 @@ import (
 	"github.com/DeBankDeFi/db-replicator/pkg/utils"
 	"github.com/DeBankDeFi/db-replicator/pkg/utils/pb"
 	"github.com/syndtr/goleveldb/leveldb"
-	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/status"
 )
@@ -108,7 +107,7 @@ func (s *server) Put(ctx context.Context,
 	return &pb.PutReply{}, nil
 }
 
-func (s *server) Delete(ctx context.Context,
+func (s *server) Del(ctx context.Context,
 	req *pb.DelRequest) (reply *pb.DelReply, err error) {
 	db, err := s.pool.GetDB(req.Id)
 	if err != nil {
@@ -188,7 +187,6 @@ func (s *server) Batch(ctx context.Context,
 }
 
 func (s *server) Iter(req *pb.IterRequest, client pb.RemoteDB_IterServer) (err error) {
-	utils.Logger().Info("Iter", zap.Any("req", req))
 	db, err := s.pool.GetDB(req.Id)
 	if err != nil {
 		return status.Errorf(utils.RemoteDBErrorCode, err.Error())

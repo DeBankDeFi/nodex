@@ -63,7 +63,16 @@ func NewReader(config *utils.Config, dbPool *db.DBPool, resetChan <-chan string)
 	}
 	utils.Logger().Info("NewReader", zap.Int64("block_num", lastBlockHeader.BlockNum), zap.Int64("msg_offset", lastBlockHeader.MsgOffset))
 
-	topic := utils.Topic(config.ChainId, config.Env, true)
+	chainId := lastBlockHeader.ChainId
+	if chainId == "" {
+		chainId = config.ChainId
+	}
+	env := lastBlockHeader.Env
+	if env == "" {
+		env = config.Env
+	}
+
+	topic := utils.Topic(chainId, env, true)
 
 	kafka, err := kafka.NewKafkaClient(topic, lastBlockHeader.MsgOffset, config.KafkaAddr)
 	if err != nil {
@@ -113,7 +122,7 @@ Loop:
 				continue
 			}
 			for _, info := range infos {
-				utils.Logger().Info("new header", zap.Any("BlockNum", info.BlockNum), zap.Any("MsgOffset", r.lastBlockHeader.MsgOffset))
+				utils.Logger().Info("new header", zap.Any("BlockNum", info.BlockNum), zap.Any("MsgOffset", info.MsgOffset))
 				headerFile, err := r.s3.GetBlock(context.Background(), info)
 				if err != nil {
 					utils.Logger().Error("GetHeaderFile error", zap.Error(err), zap.Any("info", info))
@@ -136,13 +145,15 @@ Loop:
 					break
 				}
 				r.lastBlockHeader = info
-				r.lastBlockHeader.MsgOffset = r.kafka.LastReaderOffset()
-				r.kafka.IncrementLastReaderOffset()
+				if r.kafka.LastReaderOffset()+1 != r.lastBlockHeader.MsgOffset {
+					utils.Logger().Error("LastReaderOffset error", zap.Any("kafka", r.kafka.LastReaderOffset()), zap.Any("block", r.lastBlockHeader.MsgOffset))
+				}
 				err = r.dbPool.WriteBlockInfo(r.lastBlockHeader)
 				if err != nil {
 					utils.Logger().Error("WriteBlockInfo error", zap.Error(err))
 					break
 				}
+				r.kafka.IncrementLastReaderOffset()
 				utils.Logger().Info("WriteBlockInfo success", zap.Any("blockInfo", r.lastBlockHeader.String()))
 			}
 		case config := <-r.resetChan:

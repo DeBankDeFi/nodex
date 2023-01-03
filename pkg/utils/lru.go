@@ -84,7 +84,7 @@ func NewLru(maxSize uint) *Cache {
 	return c
 }
 
-func (c *Cache) Insert(key string, value []byte, height int64) {
+func (c *Cache) Insert(key string, value []byte, height int64) *entry {
 	c.Lock()
 	defer c.Unlock()
 	// Check for existing item
@@ -95,7 +95,7 @@ func (c *Cache) Insert(key string, value []byte, height int64) {
 				item.cond.Broadcast()
 			}
 		}
-		return
+		return item
 	}
 
 	// Add new item
@@ -115,6 +115,7 @@ func (c *Cache) Insert(key string, value []byte, height int64) {
 			delete(c.items, item.key)
 		}
 	}
+	return entry
 }
 
 // Get looks up a key's value from the cache.
@@ -125,7 +126,7 @@ func (c *Cache) Get(key string, height int64, fetchFn FetchFn) (value []byte, er
 		return item.Value(fetchFn)
 	} else {
 		c.RUnlock()
-		c.Insert(key, nil, height)
-		return c.Get(key, height, fetchFn)
+		item := c.Insert(key, nil, height)
+		return item.Value(fetchFn)
 	}
 }

@@ -29,6 +29,7 @@ type server struct {
 	s3  *s3.Client
 	lru map[string]*utils.Cache
 	sync.RWMutex
+	getPool sync.Pool
 }
 
 func ListenAndServe(addr string) error {
@@ -54,6 +55,12 @@ func NewServer() (*grpc.Server, error) {
 	pb.RegisterS3ProxyServer(s, &server{
 		lru: make(map[string]*utils.Cache),
 		s3:  s3,
+		getPool: sync.Pool{
+			New: func() interface{} {
+				buf := make([]byte, ChunkSize)
+				return &buf
+			},
+		},
 	})
 	return s, nil
 }
@@ -107,17 +114,18 @@ func (s *server) GetBlock(req *pb.GetBlockRequest, client pb.S3Proxy_GetBlockSer
 	if err != nil {
 		return status.Errorf(utils.AwsS3ErrorCode, "GetBlock failed, err : %v", err)
 	}
-	chunk := make([]byte, ChunkSize)
+	chunk := s.getPool.Get().(*[]byte)
+	defer s.getPool.Put(chunk)
 	reader := bytes.NewReader(buf)
 	for {
-		n, err := reader.Read(chunk)
+		n, err := reader.Read(*chunk)
 		if err != nil {
 			if err == io.EOF {
 				break
 			}
 			return status.Errorf(utils.AwsS3ErrorCode, "GetBlock failed, err : %v", err)
 		}
-		if err := client.Send(&pb.BlockChunk{Chunk: chunk[:n]}); err != nil {
+		if err := client.Send(&pb.BlockChunk{Chunk: (*chunk)[:n]}); err != nil {
 			return status.Errorf(utils.AwsS3ErrorCode, "GetBlock failed, err : %v", err)
 		}
 	}

@@ -13,6 +13,11 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+const (
+	KafkaMaxBytes = 1 << 22
+	KafkaMaxWait  = 500 * time.Millisecond
+)
+
 type KafkaClient struct {
 	client           *kafka.Client
 	writerLastOffset int64
@@ -31,7 +36,7 @@ func NewKafkaClient(topic string, readerLastOffset int64, addrs ...string) (*Kaf
 			topic: {
 				{
 					Partition: 0,
-					Timestamp:    kafka.LastOffset,
+					Timestamp: kafka.LastOffset,
 				},
 			},
 		},
@@ -43,7 +48,7 @@ func NewKafkaClient(topic string, readerLastOffset int64, addrs ...string) (*Kaf
 	}
 	return &KafkaClient{
 		client:           client,
-		writerLastOffset: rsp.Topics[topic][0].LastOffset-1,
+		writerLastOffset: rsp.Topics[topic][0].LastOffset - 1,
 		readerLastOffset: readerLastOffset,
 		topic:            topic,
 	}, nil
@@ -115,8 +120,8 @@ func (k *KafkaClient) fetch(ctx context.Context) (records []*kafka.Record, err e
 		Topic:     k.topic,
 		Partition: 0,
 		MinBytes:  1,
-		MaxBytes:  1 << 24,
-		MaxWait:   500 * time.Millisecond,
+		MaxBytes:  KafkaMaxBytes,
+		MaxWait:   KafkaMaxWait,
 		Offset:    k.readerLastOffset + 1,
 	})
 	if err != nil {

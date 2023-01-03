@@ -57,6 +57,7 @@ func (p *DBPool) Register(id int32, path string, dbType string, db DB, isMetaDB 
 	}
 }
 
+// Open opens DB
 func (p *DBPool) Open(dbInfo *pb.DBInfo) (err error) {
 	p.Lock()
 	defer p.Unlock()
@@ -104,7 +105,7 @@ func (p *DBPool) GetBlockInfo() (header *pb.BlockInfo, err error) {
 		return nil, err
 	}
 	header = &pb.BlockInfo{
-		BlockNum: -1,
+		BlockNum:  -1,
 		MsgOffset: -1,
 	}
 	if err == leveldb.ErrNotFound || len(lastMsgHeadBuf) == 0 {
@@ -116,6 +117,7 @@ func (p *DBPool) GetBlockInfo() (header *pb.BlockInfo, err error) {
 	return header, nil
 }
 
+// GetDBInfo returns all opened DBs.
 func (p *DBPool) GetDBInfo() (info *pb.DBInfoList, err error) {
 	p.RLock()
 	defer p.RUnlock()
@@ -134,6 +136,7 @@ func (p *DBPool) GetDBInfo() (info *pb.DBInfoList, err error) {
 	return info, nil
 }
 
+// GetDB returns a DB by id.
 func (p *DBPool) GetDB(id int32) (db DB, err error) {
 	p.RLock()
 	defer p.RUnlock()
@@ -144,6 +147,7 @@ func (p *DBPool) GetDB(id int32) (db DB, err error) {
 	return dbWrap.db, nil
 }
 
+// GetDBID returns a DB's id by path.
 func (p *DBPool) GetDBID(path string) (id int32, err error) {
 	p.RLock()
 	defer p.RUnlock()
@@ -155,6 +159,7 @@ func (p *DBPool) GetDBID(path string) (id int32, err error) {
 	return -1, leveldb.ErrNotFound
 }
 
+// Marshal marshals write batchs to bytes.
 func (p *DBPool) Marshal(batchs []BatchWithID) (batchItems []*pb.BatchItem, err error) {
 	p.RLock()
 	defer p.RUnlock()
@@ -169,6 +174,7 @@ func (p *DBPool) Marshal(batchs []BatchWithID) (batchItems []*pb.BatchItem, err 
 	return batchItems, nil
 }
 
+// WriteBlockInfo writes header Info to metaDB.
 func (p *DBPool) WriteBlockInfo(header *pb.BlockInfo) (err error) {
 	p.RLock()
 	defer p.RUnlock()
@@ -191,6 +197,7 @@ func (p *DBPool) WriteBlockInfo(header *pb.BlockInfo) (err error) {
 	return nil
 }
 
+// WriteBatchs writes batchs to DBs.
 func (p *DBPool) WriteBatchs(batchs []BatchWithID) (err error) {
 	p.RLock()
 	defer p.RUnlock()
@@ -203,6 +210,7 @@ func (p *DBPool) WriteBatchs(batchs []BatchWithID) (err error) {
 	return nil
 }
 
+// WriteBatchItems writes batchItems to DBs.
 func (p *DBPool) WriteBatchItems(items []*pb.BatchItem) (err error) {
 	p.RLock()
 	defer p.RUnlock()

@@ -4,5 +4,6 @@ COPY . .
 RUN go build -o s3 ./cmd/s3
 
 FROM ubuntu:20.04
+RUN apt-get update && apt-get install ca-certificates -y && update-ca-certificates
 COPY --from=build-env /root/s3/s3 /usr/bin/s3
 ENTRYPOINT ["/usr/bin/s3"]

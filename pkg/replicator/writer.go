@@ -50,7 +50,7 @@ func NewWriter(config *utils.Config, dbPool *db.DBPool) (writer *Writer, err err
 	if err != nil {
 		return nil, err
 	}
-	
+
 	utils.Logger().Info("NewWriter", zap.Any("lastBlockHeader", lastBlockHeader))
 
 	writer = &Writer{
@@ -109,7 +109,7 @@ func (w *Writer) Recovery() error {
 		}
 	}
 	lastWriteOffset := w.kafka.LastWriterOffset()
-	utils.Logger().Info("Recovery", zap.Int64("lastWriteOffset", lastWriteOffset), 
+	utils.Logger().Info("Recovery", zap.Int64("lastWriteOffset", lastWriteOffset),
 		zap.Int64("lastBlockHeader.MsgOffset", w.lastBlockHeader.MsgOffset))
 	if lastWriteOffset != w.lastBlockHeader.MsgOffset {
 		if lastWriteOffset != w.lastBlockHeader.MsgOffset-1 {
@@ -137,7 +137,7 @@ func (w *Writer) Recovery() error {
 		utils.Logger().Error("PutFile", zap.Error(err))
 		return err
 	}
-	utils.Logger().Info("Recovery sucess")
+	utils.Logger().Info("Recovery sucess", zap.Any("lastBlockHeader", w.lastBlockHeader))
 	return nil
 }
 
@@ -151,7 +151,7 @@ func (w *Writer) WriteBlockToS3(blockNum int64, blockHash string, batchs []db.Ba
 	if err != nil {
 		return err
 	}
-	Block := &pb.Block{
+	block := &pb.Block{
 		Info: &pb.BlockInfo{
 			ChainId:   w.config.ChainId,
 			Env:       w.config.Env,
@@ -161,12 +161,13 @@ func (w *Writer) WriteBlockToS3(blockNum int64, blockHash string, batchs []db.Ba
 		},
 		BatchItems: batchItems,
 	}
-	Block.Info.BlockSize = int64(proto.Size(Block))
+	block.Info.BlockSize = int64(proto.Size(block))
 	// commit to s3.
-	err = w.s3.PutBlock(context.Background(), Block)
+	err = w.s3.PutBlock(context.Background(), block)
 	if err != nil {
 		return err
 	}
+	utils.Logger().Info("WriteBlockToS3", zap.Any("Block.Info", block.Info))
 	return nil
 }
 
@@ -210,6 +211,7 @@ func (w *Writer) WriteBlockHeaderToS3(blockNum int64, blockHash string, batchs [
 		return err
 	}
 	w.lastBlockHeader = blockHeader.Info
+	utils.Logger().Info("WriteBlockHeaderToS3", zap.Any("blockHeader.Info", blockHeader.Info))
 	return nil
 }
 
@@ -241,5 +243,6 @@ func (w *Writer) WriteBlockHeaderToKafka() (err error) {
 	if err != nil {
 		return err
 	}
+	utils.Logger().Info("WriteBlockHeaderToKafka sucess", zap.Any("lastBlockHeader", w.lastBlockHeader))
 	return nil
 }

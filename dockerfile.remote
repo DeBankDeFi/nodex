@@ -4,5 +4,6 @@ COPY . .
 RUN go build -o remote ./cmd/remote
 
 FROM ubuntu:20.04
+RUN apt-get update && apt-get install ca-certificates -y && update-ca-certificates
 COPY --from=build-env /root/remote/remote /usr/bin/remote
 ENTRYPOINT ["/usr/bin/remote"]
