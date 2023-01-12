@@ -58,7 +58,7 @@ func (p *DBPool) Register(id int32, path string, dbType string, db DB, isMetaDB 
 }
 
 // Open opens DB
-func (p *DBPool) Open(dbInfo *pb.DBInfo) (err error) {
+func (p *DBPool) Open(dbInfo *pb.DBInfo, cacheSize int) (err error) {
 	p.Lock()
 	defer p.Unlock()
 	if _, ok := p.dbs[dbInfo.Id]; ok {
@@ -71,7 +71,7 @@ func (p *DBPool) Open(dbInfo *pb.DBInfo) (err error) {
 				return nil
 			}
 		}
-		db, err := NewLDB(dbInfo.DbPath)
+		db, err := NewLDB(dbInfo.DbPath, cacheSize)
 		if err != nil {
 			return err
 		}

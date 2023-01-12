@@ -52,7 +52,7 @@ func NewReader(config *utils.Config, dbPool *db.DBPool, resetChan <-chan string)
 	utils.Logger().Info("NewReader", zap.Any("dbInfos", dbInfos))
 
 	for _, dbInfo := range dbInfos.DbInfos {
-		err = dbPool.Open(dbInfo)
+		err = dbPool.Open(dbInfo, config.DBCacheSize)
 		if err != nil {
 			return nil, err
 		}

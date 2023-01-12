@@ -9,6 +9,7 @@ type Config struct {
 	ChainId          string
 	Env              string
 	ReorgDeep        int
+	DBCacheSize      int
 }
 
 // NewDevelopmentConfig returns a Dev env Config with default values.
@@ -21,5 +22,6 @@ func NewDevelopmentConfig() *Config {
 		ChainId:          "256",
 		Env:              "test",
 		ReorgDeep:        128,
+		DBCacheSize:      1 << 32,
 	}
 }

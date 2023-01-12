@@ -119,7 +119,7 @@ func (snap *LSnapshot) Release() {
 	}
 }
 
-func NewLDB(path string) (*LDB, error) {
+func NewLDB(path string, cacheSize int) (*LDB, error) {
 	// Set default options
 	options := &opt.Options{
 		Filter:                 filter.NewBloomFilter(10),
@@ -135,7 +135,7 @@ func NewLDB(path string) (*LDB, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &LDB{DB: db, cache: utils.NewSizedCache(1 * opt.GiB)}, nil
+	return &LDB{DB: db, cache: utils.NewSizedCache(cacheSize)}, nil
 }
 
 func (l *LDB) Get(key []byte) ([]byte, error) {
