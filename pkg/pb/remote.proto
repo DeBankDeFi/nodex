@@ -1,7 +1,9 @@
 syntax = "proto3";
 package pb;
 
-option go_package = "pkg/utils/pb";
+option go_package = "pkg/pb";
+
+import "block.proto";
 
 message OpenRequest {
     string type = 1;
@@ -133,7 +135,15 @@ message SnapshotReply {
     }
 }
 
-service RemoteDB {
+message SyncRequest {
+    string bottom_hash = 1; // exclude
+}
+
+message SyncyReply {
+    Block data = 1;
+}
+
+service Remote {
     rpc open(OpenRequest) returns (OpenReply) {}
     rpc get(GetRequest) returns (GetReply) {}
     rpc has(HasRequest) returns (HasReply) {}
@@ -146,4 +156,5 @@ service RemoteDB {
     rpc close(CloseRequest) returns (CloseReply) {}
     rpc iter(IterRequest) returns (stream IterReply) {}
     rpc snapshot(stream SnapshotRequest) returns (stream SnapshotReply) {}
+    rpc sync(SyncRequest) returns (stream SyncyReply) {}
 }

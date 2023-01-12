@@ -4,8 +4,8 @@ import (
 	"math"
 	"sync"
 
+	"github.com/DeBankDeFi/db-replicator/pkg/pb"
 	"github.com/DeBankDeFi/db-replicator/pkg/utils"
-	"github.com/DeBankDeFi/db-replicator/pkg/utils/pb"
 	"github.com/syndtr/goleveldb/leveldb"
 	"google.golang.org/protobuf/proto"
 )
@@ -160,13 +160,11 @@ func (p *DBPool) GetDBID(path string) (id int32, err error) {
 }
 
 // Marshal marshals write batchs to bytes.
-func (p *DBPool) Marshal(batchs []BatchWithID) (batchItems []*pb.BatchItem, err error) {
-	p.RLock()
-	defer p.RUnlock()
+func (p *DBPool) Marshal(batchs []BatchWithID) (batchItems []*pb.Data, err error) {
 	for _, item := range batchs {
 		tmp := make([]byte, len(item.B.Dump()))
 		copy(tmp, item.B.Dump())
-		batchItems = append(batchItems, &pb.BatchItem{
+		batchItems = append(batchItems, &pb.Data{
 			Id:   int32(item.ID),
 			Data: tmp,
 		})
@@ -199,8 +197,6 @@ func (p *DBPool) WriteBlockInfo(header *pb.BlockInfo) (err error) {
 
 // WriteBatchs writes batchs to DBs.
 func (p *DBPool) WriteBatchs(batchs []BatchWithID) (err error) {
-	p.RLock()
-	defer p.RUnlock()
 	for _, item := range batchs {
 		err = item.B.Write()
 		if err != nil {
@@ -211,7 +207,7 @@ func (p *DBPool) WriteBatchs(batchs []BatchWithID) (err error) {
 }
 
 // WriteBatchItems writes batchItems to DBs.
-func (p *DBPool) WriteBatchItems(items []*pb.BatchItem) (err error) {
+func (p *DBPool) WriteBatchItems(items []*pb.Data) (err error) {
 	p.RLock()
 	defer p.RUnlock()
 	for _, item := range items {
@@ -225,4 +221,12 @@ func (p *DBPool) WriteBatchItems(items []*pb.BatchItem) (err error) {
 		}
 	}
 	return nil
+}
+
+func (p *DBPool) Close() {
+	p.Lock()
+	defer p.Unlock()
+	for _, db := range p.dbs {
+		db.db.Close()
+	}
 }

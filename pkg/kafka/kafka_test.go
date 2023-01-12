@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/DeBankDeFi/db-replicator/pkg/kafka"
-	"github.com/DeBankDeFi/db-replicator/pkg/utils/pb"
+	"github.com/DeBankDeFi/db-replicator/pkg/pb"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 )

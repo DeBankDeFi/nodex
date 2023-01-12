@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"io"
+	"sync"
 	"time"
 
+	"github.com/DeBankDeFi/db-replicator/pkg/pb"
 	"github.com/DeBankDeFi/db-replicator/pkg/utils"
-	"github.com/DeBankDeFi/db-replicator/pkg/utils/pb"
 	"github.com/segmentio/kafka-go"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
@@ -23,35 +24,25 @@ type KafkaClient struct {
 	writerLastOffset int64
 	readerLastOffset int64
 	topic            string
+	sync.RWMutex
 }
 
 func NewKafkaClient(topic string, readerLastOffset int64, addrs ...string) (*KafkaClient, error) {
-	client := &kafka.Client{
+	kafka := &kafka.Client{
 		Addr:    kafka.TCP(addrs...),
 		Timeout: time.Second * 10,
 	}
-	rsp, err := client.ListOffsets(context.Background(), &kafka.ListOffsetsRequest{
-		Addr: client.Addr,
-		Topics: map[string][]kafka.OffsetRequest{
-			topic: {
-				{
-					Partition: 0,
-					Timestamp: kafka.LastOffset,
-				},
-			},
-		},
-	},
-	)
-	utils.Logger().Info("NewKafkaClient", zap.Any("rsp", rsp), zap.Any("err", err))
+	client := &KafkaClient{
+		client:           kafka,
+		readerLastOffset: readerLastOffset,
+		topic:            topic,
+	}
+	writeLastOffset, err := client.LastRemoteWriterOffset()
 	if err != nil {
 		return nil, err
 	}
-	return &KafkaClient{
-		client:           client,
-		writerLastOffset: rsp.Topics[topic][0].LastOffset - 1,
-		readerLastOffset: readerLastOffset,
-		topic:            topic,
-	}, nil
+	client.writerLastOffset = writeLastOffset
+	return client, nil
 }
 
 func (k *KafkaClient) ResetTopic(topic string) {
@@ -60,6 +51,25 @@ func (k *KafkaClient) ResetTopic(topic string) {
 
 func (k *KafkaClient) LastWriterOffset() int64 {
 	return k.writerLastOffset
+}
+
+func (k *KafkaClient) LastRemoteWriterOffset() (int64, error) {
+	rsp, err := k.client.ListOffsets(context.Background(), &kafka.ListOffsetsRequest{
+		Addr: k.client.Addr,
+		Topics: map[string][]kafka.OffsetRequest{
+			k.topic: {
+				{
+					Partition: 0,
+					Timestamp: kafka.LastOffset,
+				},
+			},
+		},
+	},
+	)
+	if err != nil {
+		return -1, err
+	}
+	return rsp.Topics[k.topic][0].LastOffset - 1, nil
 }
 
 func (k *KafkaClient) IncrementLastReaderOffset() {
@@ -97,7 +107,11 @@ func (k *KafkaClient) broadcast(ctx context.Context, record kafka.Record) error 
 }
 
 func (k *KafkaClient) Fetch(ctx context.Context) (infos []*pb.BlockInfo, err error) {
-	records, err := k.fetch(ctx)
+	return k.FetchStart(ctx, k.readerLastOffset+1)
+}
+
+func (k *KafkaClient) FetchStart(ctx context.Context, start int64) (infos []*pb.BlockInfo, err error) {
+	records, err := k.fetch(ctx, start)
 	if err != nil {
 		return nil, err
 	}
@@ -115,14 +129,14 @@ func (k *KafkaClient) Fetch(ctx context.Context) (infos []*pb.BlockInfo, err err
 	return infos, nil
 }
 
-func (k *KafkaClient) fetch(ctx context.Context) (records []*kafka.Record, err error) {
+func (k *KafkaClient) fetch(ctx context.Context, start int64) (records []*kafka.Record, err error) {
 	rsp, err := k.client.Fetch(ctx, &kafka.FetchRequest{
 		Topic:     k.topic,
 		Partition: 0,
 		MinBytes:  1,
 		MaxBytes:  KafkaMaxBytes,
 		MaxWait:   KafkaMaxWait,
-		Offset:    k.readerLastOffset + 1,
+		Offset:    start,
 	})
 	if err != nil {
 		return nil, err

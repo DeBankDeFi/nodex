@@ -1,6 +1,7 @@
 package db
 
 import (
+	"github.com/DeBankDeFi/db-replicator/pkg/utils"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/errors"
 	"github.com/syndtr/goleveldb/leveldb/filter"
@@ -10,14 +11,27 @@ import (
 )
 
 type LDB struct {
-	Id int32
-	DB *leveldb.DB
+	Id    int32
+	DB    *leveldb.DB
+	cache *utils.SizedCache
 }
 
 type LBatch struct {
-	DB    *leveldb.DB
+	DB    *LDB
 	Batch *leveldb.Batch
 	size  int
+}
+
+type cacheReplayer struct {
+	cache *utils.SizedCache
+}
+
+func (r *cacheReplayer) Put(key, value []byte) {
+	r.cache.Set(key, value)
+}
+
+func (r *cacheReplayer) Delete(key []byte) {
+	r.cache.Del(key)
 }
 
 func (l *LBatch) Put(key, value []byte) error {
@@ -37,7 +51,12 @@ func (l *LBatch) ValueSize() int {
 }
 
 func (l *LBatch) Write() error {
-	return l.DB.Write(l.Batch, nil)
+	err := l.DB.DB.Write(l.Batch, nil)
+	if err != nil {
+		return err
+	}
+	l.Batch.Replay(&cacheReplayer{cache: l.DB.cache})
+	return nil
 }
 
 func (l *LBatch) Load(data []byte) error {
@@ -105,6 +124,8 @@ func NewLDB(path string) (*LDB, error) {
 	options := &opt.Options{
 		Filter:                 filter.NewBloomFilter(10),
 		DisableSeeksCompaction: true,
+		BlockCacheCapacity:     512 * opt.MiB,
+		WriteBuffer:            512 * opt.MiB,
 	}
 	// Open the db and recover any potential corruptions
 	db, err := leveldb.OpenFile(path, options)
@@ -114,23 +135,41 @@ func NewLDB(path string) (*LDB, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &LDB{DB: db}, nil
+	return &LDB{DB: db, cache: utils.NewSizedCache(1 * opt.GiB)}, nil
 }
 
 func (l *LDB) Get(key []byte) ([]byte, error) {
-	return l.DB.Get(key, nil)
+	if val, has := l.cache.HasGet(key); has {
+		return val, nil
+	}
+	return l.cache.LoadOrSet(key, func() ([]byte, error) {
+		return l.DB.Get(key, nil)
+	})
 }
 
 func (l *LDB) Has(key []byte) (bool, error) {
+	if l.cache.Has(key) {
+		return true, nil
+	}
 	return l.DB.Has(key, nil)
 }
 
 func (l *LDB) Put(key, value []byte) error {
-	return l.DB.Put(key, value, nil)
+	err := l.DB.Put(key, value, nil)
+	if err != nil {
+		return err
+	}
+	l.cache.Set(key, value)
+	return nil
 }
 
 func (l *LDB) Delete(key []byte) error {
-	return l.DB.Delete(key, nil)
+	err := l.DB.Delete(key, nil)
+	if err != nil {
+		return err
+	}
+	l.cache.Del(key)
+	return nil
 }
 
 func (l *LDB) Stat(property string) (string, error) {
@@ -167,14 +206,14 @@ func (l *LDB) Compact(start, limit []byte) error {
 
 func (l *LDB) NewBatch() Batch {
 	return &LBatch{
-		DB:    l.DB,
+		DB:    l,
 		Batch: new(leveldb.Batch),
 	}
 }
 
 func (l *LDB) NewBatchWithSize(size int) Batch {
 	return &LBatch{
-		DB:    l.DB,
+		DB:    l,
 		Batch: leveldb.MakeBatch(size),
 	}
 }

@@ -1,0 +1,67 @@
+syntax = "proto3";
+package pb;
+
+option go_package = "pkg/pb";
+
+message BlockInfo {
+    string chain_id = 1;
+    string env = 2;
+    int64 block_num = 3;
+    string block_hash = 4;
+    string block_root = 5;
+    int64 msg_offset = 6;
+    enum BlockType {
+        UNKNOWN = 0;
+        DATA = 1;
+        HEADER = 2;
+        MEM = 3;
+    }
+    BlockType block_type = 7;
+    int64 block_size = 8;
+}
+
+message Data {
+    int32 id = 1;
+    bytes data = 2;
+}
+
+message Block {
+    BlockInfo info = 1;
+    repeated Data batch_items = 2;
+    SnapshotDiff snapshot_diff = 3;
+    repeated KV added_cache = 4;
+ }
+
+ message KV {
+    bytes key = 1;
+    bytes value = 2;
+ }
+
+ message Account {
+    string Address = 1;
+    bytes Data = 2;
+ } 
+
+message Accounts {
+    repeated Account accounts = 1;
+}
+
+ message SnapshotDiff {
+    string disk_hash = 1;
+    string parent_root = 2;
+    string block_root = 3;
+    repeated string destructs = 4;
+    repeated Account accounts = 5;
+    map<string, Accounts> storage = 6;
+ }
+
+message DBInfo {
+    int32 id = 1;
+    string db_type = 2;
+    string db_path = 3;
+    bool is_meta = 4;
+}
+
+message DBInfoList {
+    repeated DBInfo db_infos = 1;
+}

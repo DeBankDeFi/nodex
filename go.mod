@@ -3,9 +3,11 @@ module github.com/DeBankDeFi/db-replicator
 go 1.18
 
 require (
+	github.com/VictoriaMetrics/fastcache v1.12.0
 	github.com/aws/aws-sdk-go-v2 v1.17.3
 	github.com/aws/aws-sdk-go-v2/config v1.18.5
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.29.6
+	github.com/cespare/xxhash v1.1.0
 	github.com/google/btree v1.1.2
 	github.com/segmentio/kafka-go v0.4.38
 	github.com/stretchr/testify v1.8.0
@@ -31,6 +33,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.13.10 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.17.7 // indirect
 	github.com/aws/smithy-go v1.13.5 // indirect
+	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/golang/snappy v0.0.4 // indirect

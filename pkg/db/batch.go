@@ -1,23 +1,24 @@
 package db
 
+type BatchWriter interface {
+	// Write flushes any accumulated data to disk.
+	Write() error
+	// Load loads given slice into the batch.
+	Load(data []byte) error
+	// Dump dumps the batch into a byte slice.
+	Dump() []byte
+}
+
 // Batch is a write-only put/del op set.
 type Batch interface {
 	KeyValueWriter
+	BatchWriter
 
 	// ValueSize retrieves the amount of data queued up for writing.
 	ValueSize() int
 
-	// Write flushes any accumulated data to disk.
-	Write() error
-
-	// Load loads given slice into the batch.
-	Load(data []byte) error
-
 	// Reset resets the batch for reuse.
 	Reset()
-
-	// Dump dumps the batch into a byte slice.
-	Dump() []byte
 
 	// Replay replays the batch contents.
 	Replay(w KeyValueWriter) error
@@ -35,7 +36,7 @@ type Batcher interface {
 
 type BatchWithID struct {
 	ID int32
-	B  Batch
+	B  BatchWriter
 }
 
 type Replayer struct {

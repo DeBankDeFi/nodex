@@ -1,4 +1,4 @@
-package remote
+package reader
 
 import (
 	"context"
@@ -7,30 +7,30 @@ import (
 	"sync"
 
 	"github.com/DeBankDeFi/db-replicator/pkg/db"
-	"github.com/DeBankDeFi/db-replicator/pkg/utils/pb"
+	"github.com/DeBankDeFi/db-replicator/pkg/pb"
 	"github.com/syndtr/goleveldb/leveldb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-var _ db.DB = &RemoteDB{}
+var _ db.DB = &Remote{}
 
-type RemoteDB struct {
-	client pb.RemoteDBClient
+type Remote struct {
+	client pb.RemoteClient
 	id     int32
 }
 
-func NewClient(addr string) (pb.RemoteDBClient, error) {
+func NewClient(addr string) (pb.RemoteClient, error) {
 	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(math.MaxInt32),
 			grpc.MaxCallSendMsgSize(math.MaxInt32)))
 	if err != nil {
 		return nil, err
 	}
-	return pb.NewRemoteDBClient(conn), nil
+	return pb.NewRemoteClient(conn), nil
 }
 
-func OpenRemoteDB(client pb.RemoteDBClient, dbType, path string, IsMetaDB bool) (db *RemoteDB, err error) {
+func OpenRemoteDB(client pb.RemoteClient, dbType, path string, IsMetaDB bool) (db *Remote, err error) {
 	rsp, err := client.Open(context.Background(), &pb.OpenRequest{
 		Type:     dbType,
 		Path:     path,
@@ -39,13 +39,13 @@ func OpenRemoteDB(client pb.RemoteDBClient, dbType, path string, IsMetaDB bool) 
 	if err != nil {
 		return nil, err
 	}
-	return &RemoteDB{
+	return &Remote{
 		client: client,
 		id:     rsp.Id,
 	}, nil
 }
 
-func (r *RemoteDB) Get(key []byte) (val []byte, err error) {
+func (r *Remote) Get(key []byte) (val []byte, err error) {
 	rsp, err := r.client.Get(context.Background(), &pb.GetRequest{
 		Id:  r.id,
 		Key: key,
@@ -62,7 +62,7 @@ func (r *RemoteDB) Get(key []byte) (val []byte, err error) {
 	return rsp.Value, nil
 }
 
-func (r *RemoteDB) Has(key []byte) (bool, error) {
+func (r *Remote) Has(key []byte) (bool, error) {
 	rsp, err := r.client.Get(context.Background(), &pb.GetRequest{
 		Id:  r.id,
 		Key: key,
@@ -73,7 +73,7 @@ func (r *RemoteDB) Has(key []byte) (bool, error) {
 	return rsp.Exist, nil
 }
 
-func (r *RemoteDB) Put(key []byte, value []byte) (err error) {
+func (r *Remote) Put(key []byte, value []byte) (err error) {
 	_, err = r.client.Put(context.Background(), &pb.PutRequest{
 		Id:    r.id,
 		Key:   key,
@@ -85,7 +85,7 @@ func (r *RemoteDB) Put(key []byte, value []byte) (err error) {
 	return nil
 }
 
-func (r *RemoteDB) Delete(key []byte) (err error) {
+func (r *Remote) Delete(key []byte) (err error) {
 	_, err = r.client.Del(context.Background(), &pb.DelRequest{
 		Id:  r.id,
 		Key: key,
@@ -96,7 +96,7 @@ func (r *RemoteDB) Delete(key []byte) (err error) {
 	return nil
 }
 
-func (r *RemoteDB) Stat(property string) (stat string, err error) {
+func (r *Remote) Stat(property string) (stat string, err error) {
 	rsp, err := r.client.Stat(context.Background(), &pb.StatRequest{
 		Id:       r.id,
 		Property: property,
@@ -107,7 +107,7 @@ func (r *RemoteDB) Stat(property string) (stat string, err error) {
 	return rsp.Stat, nil
 }
 
-func (r *RemoteDB) Stats() (stats map[string]string, err error) {
+func (r *Remote) Stats() (stats map[string]string, err error) {
 	rsp, err := r.client.Stats(context.Background(), &pb.StatsRequest{
 		Id: r.id,
 	})
@@ -117,7 +117,7 @@ func (r *RemoteDB) Stats() (stats map[string]string, err error) {
 	return rsp.Data, nil
 }
 
-func (r *RemoteDB) Compact(start, limit []byte) (err error) {
+func (r *Remote) Compact(start, limit []byte) (err error) {
 	_, err = r.client.Compact(context.Background(), &pb.CompactRequest{
 		Id:    r.id,
 		Start: start,
@@ -129,7 +129,7 @@ func (r *RemoteDB) Compact(start, limit []byte) (err error) {
 	return nil
 }
 
-func (r *RemoteDB) NewIteratorWithRange(start, limit []byte) (iter db.Iterator, err error) {
+func (r *Remote) NewIteratorWithRange(start, limit []byte) (iter db.Iterator, err error) {
 	rsp, err := r.client.Iter(context.Background(), &pb.IterRequest{
 		Id:    r.id,
 		Start: start,
@@ -143,7 +143,7 @@ func (r *RemoteDB) NewIteratorWithRange(start, limit []byte) (iter db.Iterator, 
 	}, nil
 }
 
-func (r *RemoteDB) NewIterator(prefix []byte, start []byte) (iter db.Iterator) {
+func (r *Remote) NewIterator(prefix []byte, start []byte) (iter db.Iterator) {
 	ran := db.BytesPrefixRange(prefix, start)
 	rsp, err := r.client.Iter(context.Background(), &pb.IterRequest{
 		Id:    r.id,
@@ -162,7 +162,7 @@ func (r *RemoteDB) NewIterator(prefix []byte, start []byte) (iter db.Iterator) {
 }
 
 type RemoteIterator struct {
-	client pb.RemoteDB_IterClient
+	client pb.Remote_IterClient
 	key    []byte
 	value  []byte
 	end    bool
@@ -204,7 +204,7 @@ func (r *RemoteIterator) Release() {
 }
 
 type RemoteSnapshot struct {
-	client pb.RemoteDB_SnapshotClient
+	client pb.Remote_SnapshotClient
 	sync.Mutex
 }
 
@@ -264,7 +264,7 @@ func (r *RemoteSnapshot) Release() {
 	r.client.CloseSend()
 }
 
-func (r *RemoteDB) NewSnapshot() (snapshot db.Snapshot, err error) {
+func (r *Remote) NewSnapshot() (snapshot db.Snapshot, err error) {
 	rsp, err := r.client.Snapshot(context.Background())
 	if err != nil {
 		return nil, err
@@ -284,7 +284,7 @@ func (r *RemoteDB) NewSnapshot() (snapshot db.Snapshot, err error) {
 }
 
 type RemoteBatch struct {
-	client pb.RemoteDBClient
+	client pb.RemoteClient
 	batch  *leveldb.Batch
 	id     int32
 	size   int
@@ -331,7 +331,7 @@ func (r *RemoteBatch) Write() error {
 	return err
 }
 
-func (r *RemoteDB) NewBatch() db.Batch {
+func (r *Remote) NewBatch() db.Batch {
 	return &RemoteBatch{
 		batch:  leveldb.MakeBatch(0),
 		client: r.client,
@@ -339,7 +339,7 @@ func (r *RemoteDB) NewBatch() db.Batch {
 	}
 }
 
-func (r *RemoteDB) NewBatchWithSize(size int) db.Batch {
+func (r *Remote) NewBatchWithSize(size int) db.Batch {
 	return &RemoteBatch{
 		batch:  leveldb.MakeBatch(size),
 		client: r.client,
@@ -347,7 +347,7 @@ func (r *RemoteDB) NewBatchWithSize(size int) db.Batch {
 	}
 }
 
-func (r *RemoteDB) Close() (err error) {
+func (r *Remote) Close() (err error) {
 	_, err = r.client.Close(context.Background(), &pb.CloseRequest{
 		Id: r.id,
 	})

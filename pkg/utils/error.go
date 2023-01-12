@@ -12,17 +12,21 @@ var (
 	ErrAwsS3 = New(AwsS3ErrorCode, "aws s3 error")
 
 	ErrWriterRecovey = New(WriterRecoveryErrorCode, "writer recovery error")
+
+	ErrStreamNotInit = New(StreamNotInitErrorCode, "stream not init")
 )
 
 const (
 	UnknownErrorCode                 = -1
-	NoMetaDBRegisteredErrorCode      = 1001
-	WriterStoppedErrorCode           = 1002
-	ReadInvalidHeaderErrorCode       = 1003
-	AwsS3ErrorCode                   = 1004
-	WriterRecoveryErrorCode          = 1005
-	RemoteDBErrorCode                = 1006
-	MetaDBAlreadyRegisteredErrorCode = 1007
+	NoMetaDBRegisteredErrorCode      = 41001
+	WriterStoppedErrorCode           = 41002
+	ReadInvalidHeaderErrorCode       = 41003
+	AwsS3ErrorCode                   = 41004
+	WriterRecoveryErrorCode          = 41005
+	RemoteErrorCode                  = 41006
+	MetaDBAlreadyRegisteredErrorCode = 41007
+	BroadcasterErrorCode             = 41008
+	StreamNotInitErrorCode           = 41009
 )
 
 func New(code int, text string) error {

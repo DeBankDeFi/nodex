@@ -6,8 +6,8 @@ import (
 	"io"
 	"math"
 
+	"github.com/DeBankDeFi/db-replicator/pkg/pb"
 	"github.com/DeBankDeFi/db-replicator/pkg/utils"
-	"github.com/DeBankDeFi/db-replicator/pkg/utils/pb"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -16,6 +16,7 @@ import (
 
 type Client struct {
 	s3client pb.S3ProxyClient
+	cache    *utils.Cache
 }
 
 func NewClient(addr string) (*Client, error) {
@@ -27,12 +28,35 @@ func NewClient(addr string) (*Client, error) {
 	}
 	return &Client{
 		s3client: pb.NewS3ProxyClient(conn),
+		cache:    utils.NewCache(MaxCacheSize),
 	}, nil
 }
 
-func (c *Client) GetBlock(ctx context.Context, info *pb.BlockInfo) (header *pb.Block, err error) {
+func (c *Client) GetBlock(ctx context.Context, info *pb.BlockInfo, noCache bool) (header *pb.Block, err error) {
+	commonPrefix := utils.CommonPrefix(info.ChainId, info.Env, info.BlockType)
+	lru := c.cache.GetOrCreatePrefixCache(commonPrefix)
+	key := utils.InfoToPrefix(info)
+	if noCache {
+		val, err := c.getBlock(ctx, info, noCache)
+		if err != nil {
+			return nil, err
+		}
+		header = val
+		lru.Insert(key, header, info.BlockNum)
+	} else {
+		val, err := lru.Get(key, info.BlockNum, func() (interface{}, error) { return c.getBlock(ctx, info, noCache) })
+		if err != nil {
+			return nil, err
+		}
+		header = proto.Clone(val.(*pb.Block)).(*pb.Block)
+	}
+	return header, nil
+}
+
+func (c *Client) getBlock(ctx context.Context, info *pb.BlockInfo, noCache bool) (header *pb.Block, err error) {
 	client, err := c.s3client.GetBlock(ctx, &pb.GetBlockRequest{
-		Info: info,
+		Info:    info,
+		NoCache: noCache,
 	})
 	if err != nil {
 		return nil, err
@@ -51,6 +75,9 @@ func (c *Client) GetBlock(ctx context.Context, info *pb.BlockInfo) (header *pb.B
 		}
 	}
 	client.CloseSend()
+	if buf.Len() == 0 {
+		return nil, nil
+	}
 	header = &pb.Block{}
 	err = proto.Unmarshal(buf.Bytes(), header)
 	if err != nil {

@@ -1,4 +1,4 @@
-package replicator
+package reader
 
 import (
 	"context"
@@ -6,9 +6,9 @@ import (
 
 	"github.com/DeBankDeFi/db-replicator/pkg/db"
 	"github.com/DeBankDeFi/db-replicator/pkg/kafka"
+	"github.com/DeBankDeFi/db-replicator/pkg/pb"
 	"github.com/DeBankDeFi/db-replicator/pkg/s3"
 	"github.com/DeBankDeFi/db-replicator/pkg/utils"
-	"github.com/DeBankDeFi/db-replicator/pkg/utils/pb"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
 )
@@ -26,10 +26,7 @@ type Writer struct {
 
 	lastBlockHeader *pb.BlockInfo
 
-	stop      bool
-	stopC     chan struct{}
-	stopdoneC chan struct{} // Write shutdown complete
-
+	stop bool
 }
 
 // NewWriter creates a new writer.
@@ -39,7 +36,7 @@ func NewWriter(config *utils.Config, dbPool *db.DBPool) (writer *Writer, err err
 		return nil, err
 	}
 
-	topic := utils.Topic(config.ChainId, config.Env, true)
+	topic := utils.Topic(config.ChainId, config.Env)
 
 	kafka, err := kafka.NewKafkaClient(topic, -1, config.KafkaAddr)
 	if err != nil {
@@ -59,8 +56,6 @@ func NewWriter(config *utils.Config, dbPool *db.DBPool) (writer *Writer, err err
 		s3:              s3,
 		kafka:           kafka,
 		lastBlockHeader: lastBlockHeader,
-		stopC:           make(chan struct{}),
-		stopdoneC:       make(chan struct{}),
 	}
 
 	return writer, nil
@@ -70,52 +65,56 @@ func NewWriter(config *utils.Config, dbPool *db.DBPool) (writer *Writer, err err
 func (w *Writer) Recovery() error {
 	w.Lock()
 	defer w.Unlock()
-	info, err := w.s3.ListHeaderStartAt(context.Background(), w.config.ChainId,
-		w.config.Env, w.lastBlockHeader.BlockNum, 100, w.lastBlockHeader.MsgOffset)
-	if err != nil {
-		return err
-	}
-	utils.Logger().Info("Recovery", zap.Any("lastBlockHeader", w.lastBlockHeader), zap.Any("info", info))
-	if len(info) > 0 {
-		if len(info) != 1 {
-			return utils.ErrWriterRecovey
-		}
-		w.lastBlockHeader = info[0]
-		headerFile, err := w.s3.GetBlock(context.Background(), w.lastBlockHeader)
-		if err != nil {
-			return err
-		}
-		blockFile, err := w.s3.GetBlock(context.Background(), &pb.BlockInfo{
-			ChainId:   w.config.ChainId,
-			Env:       w.config.Env,
-			BlockHash: headerFile.Info.BlockHash,
-			BlockType: pb.BlockInfo_DATA,
-		})
-		if err != nil {
-			return err
-		}
-		err = w.dbPool.WriteBatchItems(headerFile.BatchItems)
-		if err != nil {
-			return err
-		}
-		err = w.dbPool.WriteBatchItems(blockFile.BatchItems)
-		if err != nil {
-			return err
-		}
-		w.lastBlockHeader = headerFile.Info
-		err = w.WriteBlockHeaderToDB(make([]db.BatchWithID, 0))
-		if err != nil {
-			return err
-		}
-	}
+	startWriteOffset := w.lastBlockHeader.MsgOffset + 1
 	lastWriteOffset := w.kafka.LastWriterOffset()
+	for startWriteOffset <= lastWriteOffset {
+		infos, err := w.kafka.FetchStart(context.Background(), startWriteOffset)
+		if err != nil {
+			return err
+		}
+		if len(infos) > 0 {
+			if len(infos) != 1 {
+				return utils.ErrWriterRecovey
+			}
+			info := infos[0]
+			utils.Logger().Info("Recovery", zap.Any("lastBlockHeader", w.lastBlockHeader), zap.Any("info", info))
+			w.lastBlockHeader = info
+			headerFile, err := w.s3.GetBlock(context.Background(), w.lastBlockHeader, false)
+			if err != nil {
+				return err
+			}
+			blockFile, err := w.s3.GetBlock(context.Background(), &pb.BlockInfo{
+				ChainId:   w.config.ChainId,
+				Env:       w.config.Env,
+				BlockHash: headerFile.Info.BlockHash,
+				BlockType: pb.BlockInfo_DATA,
+			}, false)
+			if err != nil {
+				return err
+			}
+			err = w.dbPool.WriteBatchItems(headerFile.BatchItems)
+			if err != nil {
+				return err
+			}
+			err = w.dbPool.WriteBatchItems(blockFile.BatchItems)
+			if err != nil {
+				return err
+			}
+			w.lastBlockHeader = headerFile.Info
+			err = w.WriteBlockHeaderToDB(w.lastBlockHeader, make([]db.BatchWithID, 0))
+			if err != nil {
+				return err
+			}
+		}
+	}
+
 	utils.Logger().Info("Recovery", zap.Int64("lastWriteOffset", lastWriteOffset),
 		zap.Int64("lastBlockHeader.MsgOffset", w.lastBlockHeader.MsgOffset))
 	if lastWriteOffset != w.lastBlockHeader.MsgOffset {
 		if lastWriteOffset != w.lastBlockHeader.MsgOffset-1 {
 			return utils.ErrWriterRecovey
 		}
-		err = w.kafka.Broadcast(context.Background(), w.lastBlockHeader)
+		err := w.kafka.Broadcast(context.Background(), w.lastBlockHeader)
 		if err != nil {
 			return err
 		}
@@ -141,7 +140,18 @@ func (w *Writer) Recovery() error {
 	return nil
 }
 
-func (w *Writer) WriteBlockToS3(blockNum int64, blockHash string, batchs []db.BatchWithID) (err error) {
+func (w *Writer) PrepareBlockInfo(blockNum int64, blockHash string, blockRoot string) *pb.BlockInfo {
+	return &pb.BlockInfo{
+		ChainId:   w.config.ChainId,
+		Env:       w.config.Env,
+		BlockNum:  blockNum,
+		BlockHash: blockHash,
+		BlockRoot: blockRoot,
+		MsgOffset: w.lastBlockHeader.MsgOffset + 1,
+	}
+}
+
+func (w *Writer) WriteBlockToS3(info *pb.BlockInfo, batchs []db.BatchWithID) (err error) {
 	w.Lock()
 	defer w.Unlock()
 	if w.stop {
@@ -152,22 +162,17 @@ func (w *Writer) WriteBlockToS3(blockNum int64, blockHash string, batchs []db.Ba
 		return err
 	}
 	block := &pb.Block{
-		Info: &pb.BlockInfo{
-			ChainId:   w.config.ChainId,
-			Env:       w.config.Env,
-			BlockNum:  blockNum,
-			BlockHash: blockHash,
-			BlockType: pb.BlockInfo_DATA,
-		},
+		Info:       info,
 		BatchItems: batchItems,
 	}
+	block.Info.BlockType = pb.BlockInfo_DATA
 	block.Info.BlockSize = int64(proto.Size(block))
 	// commit to s3.
 	err = w.s3.PutBlock(context.Background(), block)
 	if err != nil {
 		return err
 	}
-	utils.Logger().Info("WriteBlockToS3", zap.Any("Block.Info", block.Info))
+	utils.Logger().Debug("WriteBlockToS3", zap.Any("Block.Info", block.Info))
 	return nil
 }
 
@@ -184,7 +189,7 @@ func (w *Writer) WriteBlockToDB(batchs []db.BatchWithID) (err error) {
 	return nil
 }
 
-func (w *Writer) WriteBlockHeaderToS3(blockNum int64, blockHash string, batchs []db.BatchWithID) (err error) {
+func (w *Writer) WriteBlockHeaderToS3(info *pb.BlockInfo, batchs []db.BatchWithID) (err error) {
 	w.Lock()
 	defer w.Unlock()
 	if w.stop {
@@ -195,27 +200,41 @@ func (w *Writer) WriteBlockHeaderToS3(blockNum int64, blockHash string, batchs [
 		return err
 	}
 	blockHeader := &pb.Block{
-		Info: &pb.BlockInfo{
-			ChainId:   w.config.ChainId,
-			Env:       w.config.Env,
-			BlockNum:  blockNum,
-			BlockHash: blockHash,
-			BlockType: pb.BlockInfo_HEADER,
-			MsgOffset: w.lastBlockHeader.MsgOffset + 1,
-		},
+		Info:       info,
 		BatchItems: batchItems,
 	}
+	blockHeader.Info.BlockType = pb.BlockInfo_HEADER
 	// commit to s3.
 	err = w.s3.PutBlock(context.Background(), blockHeader)
 	if err != nil {
 		return err
 	}
-	w.lastBlockHeader = blockHeader.Info
-	utils.Logger().Info("WriteBlockHeaderToS3", zap.Any("blockHeader.Info", blockHeader.Info))
+	utils.Logger().Debug("WriteBlockHeaderToS3", zap.Any("blockHeader.Info", blockHeader.Info))
 	return nil
 }
 
-func (w *Writer) WriteBlockHeaderToDB(batchs []db.BatchWithID) (err error) {
+func (w *Writer) WriteBlockMemDiffToS3(info *pb.BlockInfo, snapshotDiff *pb.SnapshotDiff, cacheDiff []*pb.KV) (err error) {
+	w.Lock()
+	defer w.Unlock()
+	if w.stop {
+		return utils.ErrWriterStopped
+	}
+	memDiff := &pb.Block{
+		Info:         info,
+		SnapshotDiff: snapshotDiff,
+		AddedCache:   cacheDiff,
+	}
+	memDiff.Info.BlockType = pb.BlockInfo_MEM
+	// commit to s3.
+	err = w.s3.PutBlock(context.Background(), memDiff)
+	if err != nil {
+		return err
+	}
+	utils.Logger().Debug("WriteBlockMemDiffToS3", zap.Any("memDiff.Info", memDiff.Info))
+	return nil
+}
+
+func (w *Writer) WriteBlockHeaderToDB(info *pb.BlockInfo, batchs []db.BatchWithID) (err error) {
 	w.Lock()
 	defer w.Unlock()
 	if w.stop {
@@ -225,10 +244,11 @@ func (w *Writer) WriteBlockHeaderToDB(batchs []db.BatchWithID) (err error) {
 	if err != nil {
 		return err
 	}
-	err = w.dbPool.WriteBlockInfo(w.lastBlockHeader)
+	err = w.dbPool.WriteBlockInfo(info)
 	if err != nil {
 		return err
 	}
+	w.lastBlockHeader = info
 	return nil
 }
 

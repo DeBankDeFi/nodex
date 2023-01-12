@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DeBankDeFi/db-replicator/pkg/pb"
 	"github.com/DeBankDeFi/db-replicator/pkg/s3"
-	"github.com/DeBankDeFi/db-replicator/pkg/utils/pb"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 )
@@ -28,7 +28,7 @@ func TestS3(t *testing.T) {
 		}}
 	b := make([]byte, 1<<22)
 	rand.Read(b)
-	header0.BatchItems = append(header0.BatchItems, &pb.BatchItem{
+	header0.BatchItems = append(header0.BatchItems, &pb.Data{
 		Id: 0, Data: b})
 	start := time.Now()
 	err = client.PutBlock(context.Background(), header0)
@@ -39,7 +39,7 @@ func TestS3(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		wg.Add(1)
 		go func() {
-			header, err := client.GetBlock(context.Background(), header0.Info)
+			header, err := client.GetBlock(context.Background(), header0.Info, false)
 			require.NoErrorf(t, err, "GetFile error")
 			require.True(t, proto.Equal(header, header0))
 			wg.Done()
