@@ -11,20 +11,20 @@ type SyncClient struct {
 	client pb.RemoteClient
 	stream pb.Remote_SyncClient
 	fn     context.CancelFunc
+	ctx    context.Context
 }
 
 func NewSyncClient(client pb.RemoteClient) *SyncClient {
+	ctx, fn := context.WithCancel(context.Background())
 	return &SyncClient{
 		client: client,
+		ctx:    ctx,
+		fn:     fn,
 	}
 }
 
-func (r *SyncClient) SyncInit(bottomHash string) error {
-	ctx, fn := context.WithCancel(context.Background())
-	r.fn = fn
-	stream, err := r.client.Sync(ctx, &pb.SyncRequest{
-		BottomHash: bottomHash,
-	})
+func (r *SyncClient) SyncInit() error {
+	stream, err := r.client.Sync(r.ctx, &pb.SyncRequest{})
 	if err != nil {
 		return err
 	}

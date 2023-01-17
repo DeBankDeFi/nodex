@@ -136,7 +136,6 @@ message SnapshotReply {
 }
 
 message SyncRequest {
-    string bottom_hash = 1; // exclude
 }
 
 message SyncyReply {

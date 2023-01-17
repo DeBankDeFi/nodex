@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"sync"
+	"sync/atomic"
 
 	"github.com/DeBankDeFi/db-replicator/pkg/db"
 	"github.com/DeBankDeFi/db-replicator/pkg/pb"
@@ -15,9 +16,12 @@ import (
 
 var _ db.DB = &Remote{}
 
+const ConnNum = 32
+
 type Remote struct {
-	client pb.RemoteClient
-	id     int32
+	clients [ConnNum]pb.RemoteClient
+	id      int32
+	count   int64
 }
 
 func NewClient(addr string) (pb.RemoteClient, error) {
@@ -30,8 +34,16 @@ func NewClient(addr string) (pb.RemoteClient, error) {
 	return pb.NewRemoteClient(conn), nil
 }
 
-func OpenRemoteDB(client pb.RemoteClient, dbType, path string, IsMetaDB bool) (db *Remote, err error) {
-	rsp, err := client.Open(context.Background(), &pb.OpenRequest{
+func OpenRemoteDB(addr string, dbType, path string, IsMetaDB bool) (db *Remote, err error) {
+	db = &Remote{}
+	for i := 0; i < ConnNum; i++ {
+		client, err := NewClient(addr)
+		if err != nil {
+			return nil, err
+		}
+		db.clients[i] = client
+	}
+	rsp, err := db.getClient().Open(context.Background(), &pb.OpenRequest{
 		Type:     dbType,
 		Path:     path,
 		IsMetaDB: IsMetaDB,
@@ -39,14 +51,17 @@ func OpenRemoteDB(client pb.RemoteClient, dbType, path string, IsMetaDB bool) (d
 	if err != nil {
 		return nil, err
 	}
-	return &Remote{
-		client: client,
-		id:     rsp.Id,
-	}, nil
+	db.id = rsp.Id
+	return db, nil
+}
+
+func (r *Remote) getClient() pb.RemoteClient {
+	count := atomic.AddInt64(&r.count, 1)
+	return r.clients[count%ConnNum]
 }
 
 func (r *Remote) Get(key []byte) (val []byte, err error) {
-	rsp, err := r.client.Get(context.Background(), &pb.GetRequest{
+	rsp, err := r.getClient().Get(context.Background(), &pb.GetRequest{
 		Id:  r.id,
 		Key: key,
 	})
@@ -63,7 +78,7 @@ func (r *Remote) Get(key []byte) (val []byte, err error) {
 }
 
 func (r *Remote) Has(key []byte) (bool, error) {
-	rsp, err := r.client.Get(context.Background(), &pb.GetRequest{
+	rsp, err := r.getClient().Get(context.Background(), &pb.GetRequest{
 		Id:  r.id,
 		Key: key,
 	})
@@ -74,7 +89,7 @@ func (r *Remote) Has(key []byte) (bool, error) {
 }
 
 func (r *Remote) Put(key []byte, value []byte) (err error) {
-	_, err = r.client.Put(context.Background(), &pb.PutRequest{
+	_, err = r.getClient().Put(context.Background(), &pb.PutRequest{
 		Id:    r.id,
 		Key:   key,
 		Value: value,
@@ -86,7 +101,7 @@ func (r *Remote) Put(key []byte, value []byte) (err error) {
 }
 
 func (r *Remote) Delete(key []byte) (err error) {
-	_, err = r.client.Del(context.Background(), &pb.DelRequest{
+	_, err = r.getClient().Del(context.Background(), &pb.DelRequest{
 		Id:  r.id,
 		Key: key,
 	})
@@ -97,7 +112,7 @@ func (r *Remote) Delete(key []byte) (err error) {
 }
 
 func (r *Remote) Stat(property string) (stat string, err error) {
-	rsp, err := r.client.Stat(context.Background(), &pb.StatRequest{
+	rsp, err := r.getClient().Stat(context.Background(), &pb.StatRequest{
 		Id:       r.id,
 		Property: property,
 	})
@@ -108,7 +123,7 @@ func (r *Remote) Stat(property string) (stat string, err error) {
 }
 
 func (r *Remote) Stats() (stats map[string]string, err error) {
-	rsp, err := r.client.Stats(context.Background(), &pb.StatsRequest{
+	rsp, err := r.getClient().Stats(context.Background(), &pb.StatsRequest{
 		Id: r.id,
 	})
 	if err != nil {
@@ -118,7 +133,7 @@ func (r *Remote) Stats() (stats map[string]string, err error) {
 }
 
 func (r *Remote) Compact(start, limit []byte) (err error) {
-	_, err = r.client.Compact(context.Background(), &pb.CompactRequest{
+	_, err = r.getClient().Compact(context.Background(), &pb.CompactRequest{
 		Id:    r.id,
 		Start: start,
 		Limit: limit,
@@ -130,7 +145,7 @@ func (r *Remote) Compact(start, limit []byte) (err error) {
 }
 
 func (r *Remote) NewIteratorWithRange(start, limit []byte) (iter db.Iterator, err error) {
-	rsp, err := r.client.Iter(context.Background(), &pb.IterRequest{
+	rsp, err := r.getClient().Iter(context.Background(), &pb.IterRequest{
 		Id:    r.id,
 		Start: start,
 		Limit: limit,
@@ -145,7 +160,7 @@ func (r *Remote) NewIteratorWithRange(start, limit []byte) (iter db.Iterator, er
 
 func (r *Remote) NewIterator(prefix []byte, start []byte) (iter db.Iterator) {
 	ran := db.BytesPrefixRange(prefix, start)
-	rsp, err := r.client.Iter(context.Background(), &pb.IterRequest{
+	rsp, err := r.getClient().Iter(context.Background(), &pb.IterRequest{
 		Id:    r.id,
 		Start: ran.Start,
 		Limit: ran.Limit,
@@ -265,7 +280,7 @@ func (r *RemoteSnapshot) Release() {
 }
 
 func (r *Remote) NewSnapshot() (snapshot db.Snapshot, err error) {
-	rsp, err := r.client.Snapshot(context.Background())
+	rsp, err := r.getClient().Snapshot(context.Background())
 	if err != nil {
 		return nil, err
 	}
@@ -334,7 +349,7 @@ func (r *RemoteBatch) Write() error {
 func (r *Remote) NewBatch() db.Batch {
 	return &RemoteBatch{
 		batch:  leveldb.MakeBatch(0),
-		client: r.client,
+		client: r.getClient(),
 		id:     r.id,
 	}
 }
@@ -342,13 +357,13 @@ func (r *Remote) NewBatch() db.Batch {
 func (r *Remote) NewBatchWithSize(size int) db.Batch {
 	return &RemoteBatch{
 		batch:  leveldb.MakeBatch(size),
-		client: r.client,
+		client: r.getClient(),
 		id:     r.id,
 	}
 }
 
 func (r *Remote) Close() (err error) {
-	_, err = r.client.Close(context.Background(), &pb.CloseRequest{
+	_, err = r.getClient().Close(context.Background(), &pb.CloseRequest{
 		Id: r.id,
 	})
 	if err != nil {

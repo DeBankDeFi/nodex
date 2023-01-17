@@ -27,16 +27,12 @@ func (r *Reader) fetchAndCommit() error {
 			utils.Logger().Error("GetBlockFile error", zap.Error(err), zap.Any("hash", headerFile.Info.BlockHash))
 			return err
 		}
-		info.BlockType = pb.BlockInfo_MEM
-		memFile, err := r.s3.GetBlock(r.rootCtx, info, true)
-		if err != nil {
-			utils.Logger().Error("GetMemFile error", zap.Error(err), zap.Any("hash", headerFile.Info.BlockHash))
-			return err
-		}
-		err = r.dbPool.WriteBatchItems(blockFile.BatchItems)
-		if err != nil {
-			utils.Logger().Error("WriteBatchItems error", zap.Error(err))
-			return err
+		if blockFile != nil {
+			err = r.dbPool.WriteBatchItems(blockFile.BatchItems)
+			if err != nil {
+				utils.Logger().Error("WriteBatchItems error", zap.Error(err))
+				return err
+			}
 		}
 		err = r.dbPool.WriteBatchItems(headerFile.BatchItems)
 		if err != nil {
@@ -48,7 +44,8 @@ func (r *Reader) fetchAndCommit() error {
 			utils.Logger().Error("WriteBlockInfo error", zap.Error(err))
 			return err
 		}
-		r.broker.publish(memFile)
+		headerFile.BatchItems = nil
+		r.broker.publish(headerFile)
 		r.lastBlockHeader = info
 		if r.kafka.LastReaderOffset()+1 != r.lastBlockHeader.MsgOffset {
 			utils.Logger().Error("LastReaderOffset error", zap.Any("kafka", r.kafka.LastReaderOffset()), zap.Any("block", r.lastBlockHeader.MsgOffset))

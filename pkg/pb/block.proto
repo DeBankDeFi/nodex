@@ -28,8 +28,6 @@ message Data {
 message Block {
     BlockInfo info = 1;
     repeated Data batch_items = 2;
-    SnapshotDiff snapshot_diff = 3;
-    repeated KV added_cache = 4;
  }
 
  message KV {
@@ -45,15 +43,6 @@ message Block {
 message Accounts {
     repeated Account accounts = 1;
 }
-
- message SnapshotDiff {
-    string disk_hash = 1;
-    string parent_root = 2;
-    string block_root = 3;
-    repeated string destructs = 4;
-    repeated Account accounts = 5;
-    map<string, Accounts> storage = 6;
- }
 
 message DBInfo {
     int32 id = 1;

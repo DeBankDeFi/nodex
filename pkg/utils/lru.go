@@ -3,8 +3,6 @@ package utils
 import (
 	"sync"
 
-	"github.com/VictoriaMetrics/fastcache"
-	"github.com/cespare/xxhash"
 	btree "github.com/google/btree"
 )
 
@@ -161,77 +159,4 @@ func (c *LRU) Get(key string, height int64, fetchFn FetchFn) (value interface{},
 		item := c.Insert(key, nil, height)
 		return item.Value(fetchFn)
 	}
-}
-
-type SizedCache struct {
-	cache       *fastcache.Cache
-	bucketlocks [bucketsCount]*sync.RWMutex
-}
-
-func NewSizedCache(size int) *SizedCache {
-	c := &SizedCache{
-		cache: fastcache.New(size),
-	}
-	for i := 0; i < bucketsCount; i++ {
-		c.bucketlocks[i] = &sync.RWMutex{}
-	}
-	return c
-}
-
-func (c *SizedCache) GetKeyLock(key []byte) *sync.RWMutex {
-	h := xxhash.Sum64(key)
-	idx := h % bucketsCount
-	return c.bucketlocks[idx]
-}
-
-func (c *SizedCache) HasGet(key []byte) ([]byte, bool) {
-	lock := c.GetKeyLock(key)
-	lock.RLock()
-	defer lock.RUnlock()
-	return c.cache.HasGet(nil, key)
-}
-
-func (c *SizedCache) Get(key []byte) []byte {
-	lock := c.GetKeyLock(key)
-	lock.RLock()
-	defer lock.RUnlock()
-	return c.cache.Get(nil, key)
-}
-
-func (c *SizedCache) Has(key []byte) bool {
-	lock := c.GetKeyLock(key)
-	lock.RLock()
-	defer lock.RUnlock()
-	return c.cache.Has(key)
-}
-
-func (c *SizedCache) Set(key []byte, value []byte) {
-	lock := c.GetKeyLock(key)
-	lock.Lock()
-	defer lock.Unlock()
-	c.cache.Set(key, value)
-}
-
-func (c *SizedCache) Del(key []byte) {
-	lock := c.GetKeyLock(key)
-	lock.Lock()
-	defer lock.Unlock()
-	c.cache.Del(key)
-}
-
-type LoadFn func() ([]byte, error)
-
-func (c *SizedCache) LoadOrSet(key []byte, fn LoadFn) ([]byte, error) {
-	lock := c.GetKeyLock(key)
-	lock.Lock()
-	defer lock.Unlock()
-	if buf, ok := c.cache.HasGet(nil, key); ok {
-		return buf, nil
-	}
-	buf, err := fn()
-	if err != nil {
-		return nil, err
-	}
-	c.cache.Set(key, buf)
-	return buf, nil
 }

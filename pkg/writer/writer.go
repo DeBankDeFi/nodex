@@ -209,28 +209,7 @@ func (w *Writer) WriteBlockHeaderToS3(info *pb.BlockInfo, batchs []db.BatchWithI
 	if err != nil {
 		return err
 	}
-	utils.Logger().Debug("WriteBlockHeaderToS3", zap.Any("blockHeader.Info", blockHeader.Info))
-	return nil
-}
-
-func (w *Writer) WriteBlockMemDiffToS3(info *pb.BlockInfo, snapshotDiff *pb.SnapshotDiff, cacheDiff []*pb.KV) (err error) {
-	w.Lock()
-	defer w.Unlock()
-	if w.stop {
-		return utils.ErrWriterStopped
-	}
-	memDiff := &pb.Block{
-		Info:         info,
-		SnapshotDiff: snapshotDiff,
-		AddedCache:   cacheDiff,
-	}
-	memDiff.Info.BlockType = pb.BlockInfo_MEM
-	// commit to s3.
-	err = w.s3.PutBlock(context.Background(), memDiff)
-	if err != nil {
-		return err
-	}
-	utils.Logger().Debug("WriteBlockMemDiffToS3", zap.Any("memDiff.Info", memDiff.Info))
+	utils.Logger().Debug("WriteBlockHeaderToS3", zap.Any(".Info", blockHeader.Info))
 	return nil
 }
 

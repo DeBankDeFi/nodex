@@ -19,6 +19,7 @@ func main() {
 	flag.StringVar(&config.ChainId, "chain_id", "256", "chain id")
 	flag.StringVar(&config.Env, "env", "test", "env")
 	flag.IntVar(&config.ReorgDeep, "reorg_deep", 128, "chain reorg deep")
+	flag.IntVar(&config.DBCacheSize, "db_cache_size", 2048, "db cache size in MB")
 	flag.Parse()
 	stopChan := make(chan os.Signal, 1)
 
