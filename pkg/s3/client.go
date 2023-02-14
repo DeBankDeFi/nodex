@@ -33,7 +33,7 @@ func NewClient(addr string) (*Client, error) {
 }
 
 func (c *Client) GetBlock(ctx context.Context, info *pb.BlockInfo, noCache bool) (header *pb.Block, err error) {
-	commonPrefix := utils.CommonPrefix(info.ChainId, info.Env, info.BlockType)
+	commonPrefix := utils.CommonPrefix(info.Env, info.ChainId, info.Role, info.BlockType)
 	lru := c.cache.GetOrCreatePrefixCache(commonPrefix)
 	key := utils.InfoToPrefix(info)
 	if noCache {

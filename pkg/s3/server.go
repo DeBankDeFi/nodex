@@ -91,7 +91,7 @@ func (s *server) s3GetFile(key string) (buf []byte, err error) {
 }
 
 func (s *server) GetBlock(req *pb.GetBlockRequest, client pb.S3Proxy_GetBlockServer) error {
-	commonPrefix := utils.CommonPrefix(req.Info.ChainId, req.Info.Env, req.Info.BlockType)
+	commonPrefix := utils.CommonPrefix(req.Info.Env, req.Info.ChainId, req.Info.Role, req.Info.BlockType)
 	lru := s.cache.GetOrCreatePrefixCache(commonPrefix)
 	key := utils.InfoToPrefix(req.Info)
 	var buf []byte
@@ -148,7 +148,7 @@ func (s *server) PutBlock(client pb.S3Proxy_PutBlockServer) error {
 			buffer.Write(chunk.Chunk)
 		}
 	}
-	commonPrefix := utils.CommonPrefix(info.ChainId, info.Env, info.BlockType)
+	commonPrefix := utils.CommonPrefix(info.Env, info.ChainId, info.Role, info.BlockType)
 	key := utils.InfoToPrefix(info)
 	rsp, err := s.s3.PutObject(context.Background(), &s3.PutObjectInput{
 		Bucket: aws.String(BucketName),
@@ -187,7 +187,7 @@ func (s *server) PutFile(ctx context.Context, req *pb.PutFileRequest) (*pb.PutFi
 }
 
 func (s *server) ListHeaderStartAt(ctx context.Context, req *pb.ListHeaderStartAtRequest) (*pb.ListHeaderStartAtReply, error) {
-	prefix := utils.CommonPrefix(req.ChainId, req.Env, pb.BlockInfo_HEADER)
+	prefix := utils.CommonPrefix(req.Env, req.ChainId, req.Role, pb.BlockInfo_HEADER)
 	result, err := s.s3.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
 		Bucket:     aws.String(BucketName),
 		Prefix:     aws.String(prefix),

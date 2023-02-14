@@ -11,7 +11,6 @@ import (
 	"github.com/DeBankDeFi/db-replicator/pkg/utils"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
-	"google.golang.org/protobuf/proto"
 )
 
 type Reader struct {
@@ -39,13 +38,9 @@ func NewReader(config *utils.Config, dbPool *db.DBPool, resetChan <-chan string)
 	if err != nil {
 		return nil, err
 	}
-	buf, err := s3.GetFile(context.Background(), utils.DBInfoPrefix(config.ChainId, config.Env))
+	dbInfos, err := utils.OpenAndReadDbInfo(config.DBInfoPath)
 	if err != nil {
-		return nil, err
-	}
-
-	dbInfos := &pb.DBInfoList{}
-	if err := proto.Unmarshal(buf, dbInfos); err != nil {
+		utils.Logger().Info("OpenAndReadDbInfo", zap.Any("err", err))
 		return nil, err
 	}
 
@@ -64,16 +59,22 @@ func NewReader(config *utils.Config, dbPool *db.DBPool, resetChan <-chan string)
 	}
 	utils.Logger().Info("NewReader", zap.Int64("block_num", lastBlockHeader.BlockNum), zap.Int64("msg_offset", lastBlockHeader.MsgOffset))
 
-	chainId := lastBlockHeader.ChainId
-	if chainId == "" {
-		chainId = config.ChainId
-	}
 	env := lastBlockHeader.Env
 	if env == "" {
 		env = config.Env
 	}
 
-	topic := utils.Topic(chainId, env)
+	chainId := lastBlockHeader.ChainId
+	if chainId == "" {
+		chainId = config.ChainId
+	}
+
+	role := lastBlockHeader.Role
+	if role == "" {
+		role = config.Role
+	}
+
+	topic := utils.Topic(env, chainId, role)
 
 	kafka, err := kafka.NewKafkaClient(topic, lastBlockHeader.MsgOffset, config.KafkaAddr)
 	if err != nil {

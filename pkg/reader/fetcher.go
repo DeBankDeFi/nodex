@@ -57,7 +57,7 @@ func (r *Reader) fetchAndCommit() error {
 }
 
 func (r *Reader) reset(config *utils.Config) error {
-	topic := utils.Topic(config.ChainId, config.Env)
+	topic := utils.Topic(config.Env, config.ChainId, config.Role)
 	r.kafka.ResetTopic(topic)
 	infos, err := r.s3.ListHeaderStartAt(r.rootCtx, config.ChainId, config.Env,
 		r.lastBlockHeader.BlockNum-1, 5, r.lastBlockHeader.MsgOffset)

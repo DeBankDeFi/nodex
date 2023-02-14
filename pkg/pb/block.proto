@@ -6,18 +6,18 @@ option go_package = "pkg/pb";
 message BlockInfo {
     string chain_id = 1;
     string env = 2;
-    int64 block_num = 3;
-    string block_hash = 4;
-    string block_root = 5;
-    int64 msg_offset = 6;
+    string role = 3;
+    int64 block_num = 4;
+    string block_hash = 5;
+    string block_root = 6;
+    int64 msg_offset = 7;
     enum BlockType {
         UNKNOWN = 0;
         DATA = 1;
         HEADER = 2;
-        MEM = 3;
     }
-    BlockType block_type = 7;
-    int64 block_size = 8;
+    BlockType block_type = 8;
+    int64 block_size = 9;
 }
 
 message Data {

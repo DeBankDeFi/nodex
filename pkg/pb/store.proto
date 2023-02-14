@@ -46,11 +46,12 @@ service S3Proxy {
   }
 
   message ListHeaderStartAtRequest {
-    string chain_id = 1;
-    string env = 2;
-    int64 block_num = 3;
-    int64 count_num = 4;
-    int64 after_msg_offset = 5;
+    string env = 1;
+    string chain_id = 2;
+    string role = 3;
+    int64 block_num = 4;
+    int64 count_num = 5;
+    int64 after_msg_offset = 6;
   }
 
   message ListHeaderStartAtReply {

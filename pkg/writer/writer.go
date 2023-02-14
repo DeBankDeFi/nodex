@@ -36,7 +36,7 @@ func NewWriter(config *utils.Config, dbPool *db.DBPool) (writer *Writer, err err
 		return nil, err
 	}
 
-	topic := utils.Topic(config.ChainId, config.Env)
+	topic := utils.Topic(config.Env, config.ChainId, config.Role)
 
 	kafka, err := kafka.NewKafkaClient(topic, -1, config.KafkaAddr)
 	if err != nil {
@@ -86,6 +86,7 @@ func (w *Writer) Recovery() error {
 			blockFile, err := w.s3.GetBlock(context.Background(), &pb.BlockInfo{
 				ChainId:   w.config.ChainId,
 				Env:       w.config.Env,
+				Role:      w.config.Role,
 				BlockHash: headerFile.Info.BlockHash,
 				BlockType: pb.BlockInfo_DATA,
 			}, false)
@@ -125,17 +126,6 @@ func (w *Writer) Recovery() error {
 		return err
 	}
 	utils.Logger().Info("Recovery", zap.Any("dbInfos", dbInfos))
-	buf, err := proto.Marshal(dbInfos)
-	if err != nil {
-		utils.Logger().Error("Marshal", zap.Error(err))
-		return err
-	}
-
-	err = w.s3.PutFile(context.Background(), utils.DBInfoPrefix(w.config.ChainId, w.config.Env), buf)
-	if err != nil {
-		utils.Logger().Error("PutFile", zap.Error(err))
-		return err
-	}
 	utils.Logger().Info("Recovery sucess", zap.Any("lastBlockHeader", w.lastBlockHeader))
 	return nil
 }
@@ -144,6 +134,7 @@ func (w *Writer) PrepareBlockInfo(blockNum int64, blockHash string, blockRoot st
 	return &pb.BlockInfo{
 		ChainId:   w.config.ChainId,
 		Env:       w.config.Env,
+		Role:      w.config.Role,
 		BlockNum:  blockNum,
 		BlockHash: blockHash,
 		BlockRoot: blockRoot,

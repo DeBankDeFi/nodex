@@ -43,7 +43,7 @@ func (r *Reader) Open(ctx context.Context,
 				Id: id,
 			}, nil
 		}
-		return nil, status.Errorf(utils.RemoteErrorCode, "db not found")
+		return nil, status.Errorf(utils.RemoteErrorCode, "%v db not found", req.Path)
 	default:
 		return nil, status.Errorf(utils.RemoteErrorCode, "unknown db type")
 	}
