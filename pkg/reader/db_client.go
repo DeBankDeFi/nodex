@@ -5,24 +5,18 @@ import (
 	"fmt"
 	"math"
 	"sync"
-	"sync/atomic"
+	"time"
 
 	"github.com/DeBankDeFi/db-replicator/pkg/db"
 	"github.com/DeBankDeFi/db-replicator/pkg/pb"
+	"github.com/DeBankDeFi/db-replicator/pkg/utils"
+	"github.com/avast/retry-go/v4"
 	"github.com/syndtr/goleveldb/leveldb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
 var _ db.DB = &Remote{}
-
-const ConnNum = 32
-
-type Remote struct {
-	clients [ConnNum]pb.RemoteClient
-	id      int32
-	count   int64
-}
 
 func NewClient(addr string) (pb.RemoteClient, error) {
 	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()),
@@ -34,16 +28,24 @@ func NewClient(addr string) (pb.RemoteClient, error) {
 	return pb.NewRemoteClient(conn), nil
 }
 
+type Remote struct {
+	pool *utils.ClientPool
+	id   int32
+}
+
 func OpenRemoteDB(addr string, dbType, path string, IsMetaDB bool) (db *Remote, err error) {
 	db = &Remote{}
-	for i := 0; i < ConnNum; i++ {
-		client, err := NewClient(addr)
-		if err != nil {
-			return nil, err
-		}
-		db.clients[i] = client
+	pool, err := utils.NewClientPool(addr)
+	if err != nil {
+		return nil, err
 	}
-	rsp, err := db.getClient().Open(context.Background(), &pb.OpenRequest{
+	db.pool = pool
+	conn, _, err := db.pool.GetConn()
+	if err != nil {
+		return nil, err
+	}
+	dbClient := pb.NewRemoteClient(conn)
+	rsp, err := dbClient.Open(context.Background(), &pb.OpenRequest{
 		Type:     dbType,
 		Path:     path,
 		IsMetaDB: IsMetaDB,
@@ -55,19 +57,39 @@ func OpenRemoteDB(addr string, dbType, path string, IsMetaDB bool) (db *Remote, 
 	return db, nil
 }
 
-func (r *Remote) getClient() pb.RemoteClient {
-	count := atomic.AddInt64(&r.count, 1)
-	return r.clients[count%ConnNum]
-}
-
 func (r *Remote) Get(key []byte) (val []byte, err error) {
-	rsp, err := r.getClient().Get(context.Background(), &pb.GetRequest{
-		Id:  r.id,
-		Key: key,
-	})
+	conn, idx, err := r.pool.GetConn()
 	if err != nil {
 		return nil, err
 	}
+	var rsp *pb.GetReply
+	err = retry.Do(
+		func() error {
+			if conn == nil {
+				conn, idx, err = r.pool.GetConn()
+				if err != nil {
+					return err
+				}
+			}
+			dbClient := pb.NewRemoteClient(conn)
+			rsp, err = dbClient.Get(context.Background(), &pb.GetRequest{
+				Id:  r.id,
+				Key: key,
+			})
+			if err != nil {
+				if utils.CheckConnState(conn) != nil {
+					conn, err = r.pool.ResetConn(idx)
+					if err != nil {
+						return err
+					}
+				}
+			}
+			return err
+		},
+		retry.Attempts(5),
+		retry.Delay(1*time.Second),
+		retry.LastErrorOnly(true),
+	)
 	if !rsp.Exist {
 		return nil, leveldb.ErrNotFound
 	}
@@ -78,44 +100,82 @@ func (r *Remote) Get(key []byte) (val []byte, err error) {
 }
 
 func (r *Remote) Has(key []byte) (bool, error) {
-	rsp, err := r.getClient().Get(context.Background(), &pb.GetRequest{
-		Id:  r.id,
-		Key: key,
-	})
+	conn, idx, err := r.pool.GetConn()
 	if err != nil {
 		return false, err
 	}
+	var rsp *pb.HasReply
+	err = retry.Do(
+		func() error {
+			if conn == nil {
+				conn, idx, err = r.pool.GetConn()
+				if err != nil {
+					return err
+				}
+			}
+			dbClient := pb.NewRemoteClient(conn)
+			rsp, err = dbClient.Has(context.Background(), &pb.HasRequest{
+				Id:  r.id,
+				Key: key,
+			})
+			if err != nil {
+				if utils.CheckConnState(conn) != nil {
+					conn, err = r.pool.ResetConn(idx)
+					if err != nil {
+						return err
+					}
+				}
+			}
+			return err
+		},
+		retry.Attempts(5),
+		retry.Delay(1*time.Second),
+		retry.LastErrorOnly(true),
+	)
 	return rsp.Exist, nil
 }
 
 func (r *Remote) Put(key []byte, value []byte) (err error) {
-	_, err = r.getClient().Put(context.Background(), &pb.PutRequest{
-		Id:    r.id,
-		Key:   key,
-		Value: value,
-	})
-	if err != nil {
-		return err
-	}
 	return nil
 }
 
 func (r *Remote) Delete(key []byte) (err error) {
-	_, err = r.getClient().Del(context.Background(), &pb.DelRequest{
-		Id:  r.id,
-		Key: key,
-	})
-	if err != nil {
-		return err
-	}
 	return nil
 }
 
 func (r *Remote) Stat(property string) (stat string, err error) {
-	rsp, err := r.getClient().Stat(context.Background(), &pb.StatRequest{
-		Id:       r.id,
-		Property: property,
-	})
+	conn, idx, err := r.pool.GetConn()
+	if err != nil {
+		return "", err
+	}
+	var rsp *pb.StatReply
+	err = retry.Do(
+		func() error {
+			if conn == nil {
+				conn, idx, err = r.pool.GetConn()
+				if err != nil {
+					return err
+				}
+			}
+			dbClient := pb.NewRemoteClient(conn)
+			rsp, err = dbClient.Stat(context.Background(), &pb.StatRequest{
+				Id:       r.id,
+				Property: property,
+			})
+			if err != nil {
+				if utils.CheckConnState(conn) != nil {
+					conn, err = r.pool.ResetConn(idx)
+					if err != nil {
+						return err
+					}
+				}
+			}
+			return err
+		},
+		retry.Attempts(5),
+		retry.Delay(1*time.Second),
+		retry.LastErrorOnly(true),
+	)
 	if err != nil {
 		return "", err
 	}
@@ -123,9 +183,37 @@ func (r *Remote) Stat(property string) (stat string, err error) {
 }
 
 func (r *Remote) Stats() (stats map[string]string, err error) {
-	rsp, err := r.getClient().Stats(context.Background(), &pb.StatsRequest{
-		Id: r.id,
-	})
+	conn, idx, err := r.pool.GetConn()
+	if err != nil {
+		return nil, err
+	}
+	var rsp *pb.StatsReply
+	err = retry.Do(
+		func() error {
+			if conn == nil {
+				conn, idx, err = r.pool.GetConn()
+				if err != nil {
+					return err
+				}
+			}
+			dbClient := pb.NewRemoteClient(conn)
+			rsp, err = dbClient.Stats(context.Background(), &pb.StatsRequest{
+				Id: r.id,
+			})
+			if err != nil {
+				if utils.CheckConnState(conn) != nil {
+					conn, err = r.pool.ResetConn(idx)
+					if err != nil {
+						return err
+					}
+				}
+			}
+			return err
+		},
+		retry.Attempts(5),
+		retry.Delay(1*time.Second),
+		retry.LastErrorOnly(true),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -133,23 +221,43 @@ func (r *Remote) Stats() (stats map[string]string, err error) {
 }
 
 func (r *Remote) Compact(start, limit []byte) (err error) {
-	_, err = r.getClient().Compact(context.Background(), &pb.CompactRequest{
-		Id:    r.id,
-		Start: start,
-		Limit: limit,
-	})
-	if err != nil {
-		return err
-	}
 	return nil
 }
 
 func (r *Remote) NewIteratorWithRange(start, limit []byte) (iter db.Iterator, err error) {
-	rsp, err := r.getClient().Iter(context.Background(), &pb.IterRequest{
-		Id:    r.id,
-		Start: start,
-		Limit: limit,
-	})
+	conn, idx, err := r.pool.GetConn()
+	if err != nil {
+		return nil, err
+	}
+	var rsp pb.Remote_IterClient
+	err = retry.Do(
+		func() error {
+			if conn == nil {
+				conn, idx, err = r.pool.GetConn()
+				if err != nil {
+					return err
+				}
+			}
+			dbClient := pb.NewRemoteClient(conn)
+			rsp, err = dbClient.Iter(context.Background(), &pb.IterRequest{
+				Id:    r.id,
+				Start: start,
+				Limit: limit,
+			})
+			if err != nil {
+				if utils.CheckConnState(conn) != nil {
+					conn, err = r.pool.ResetConn(idx)
+					if err != nil {
+						return err
+					}
+				}
+			}
+			return err
+		},
+		retry.Attempts(5),
+		retry.Delay(1*time.Second),
+		retry.LastErrorOnly(true),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -159,12 +267,43 @@ func (r *Remote) NewIteratorWithRange(start, limit []byte) (iter db.Iterator, er
 }
 
 func (r *Remote) NewIterator(prefix []byte, start []byte) (iter db.Iterator) {
+	conn, idx, err := r.pool.GetConn()
+	if err != nil {
+		return &RemoteIterator{
+			err: err,
+			end: true,
+		}
+	}
 	ran := db.BytesPrefixRange(prefix, start)
-	rsp, err := r.getClient().Iter(context.Background(), &pb.IterRequest{
-		Id:    r.id,
-		Start: ran.Start,
-		Limit: ran.Limit,
-	})
+	var rsp pb.Remote_IterClient
+	err = retry.Do(
+		func() error {
+			if conn == nil {
+				conn, idx, err = r.pool.GetConn()
+				if err != nil {
+					return err
+				}
+			}
+			dbClient := pb.NewRemoteClient(conn)
+			rsp, err = dbClient.Iter(context.Background(), &pb.IterRequest{
+				Id:    r.id,
+				Start: ran.Start,
+				Limit: ran.Limit,
+			})
+			if err != nil {
+				if utils.CheckConnState(conn) != nil {
+					conn, err = r.pool.ResetConn(idx)
+					if err != nil {
+						return err
+					}
+				}
+			}
+			return err
+		},
+		retry.Attempts(5),
+		retry.Delay(1*time.Second),
+		retry.LastErrorOnly(true),
+	)
 	if err != nil {
 		return &RemoteIterator{
 			err: err,
@@ -280,7 +419,35 @@ func (r *RemoteSnapshot) Release() {
 }
 
 func (r *Remote) NewSnapshot() (snapshot db.Snapshot, err error) {
-	rsp, err := r.getClient().Snapshot(context.Background())
+	conn, idx, err := r.pool.GetConn()
+	if err != nil {
+		return nil, err
+	}
+	var rsp pb.Remote_SnapshotClient
+	err = retry.Do(
+		func() error {
+			if conn == nil {
+				conn, idx, err = r.pool.GetConn()
+				if err != nil {
+					return err
+				}
+			}
+			dbClient := pb.NewRemoteClient(conn)
+			rsp, err = dbClient.Snapshot(context.Background())
+			if err != nil {
+				if utils.CheckConnState(conn) != nil {
+					conn, err = r.pool.ResetConn(idx)
+					if err != nil {
+						return err
+					}
+				}
+			}
+			return err
+		},
+		retry.Attempts(5),
+		retry.Delay(1*time.Second),
+		retry.LastErrorOnly(true),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -347,27 +514,13 @@ func (r *RemoteBatch) Write() error {
 }
 
 func (r *Remote) NewBatch() db.Batch {
-	return &RemoteBatch{
-		batch:  leveldb.MakeBatch(0),
-		client: r.getClient(),
-		id:     r.id,
-	}
+	return nil
 }
 
 func (r *Remote) NewBatchWithSize(size int) db.Batch {
-	return &RemoteBatch{
-		batch:  leveldb.MakeBatch(size),
-		client: r.getClient(),
-		id:     r.id,
-	}
+	return nil
 }
 
 func (r *Remote) Close() (err error) {
-	_, err = r.getClient().Close(context.Background(), &pb.CloseRequest{
-		Id: r.id,
-	})
-	if err != nil {
-		return err
-	}
 	return nil
 }
