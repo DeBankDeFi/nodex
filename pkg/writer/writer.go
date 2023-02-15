@@ -3,12 +3,14 @@ package reader
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/DeBankDeFi/db-replicator/pkg/db"
 	"github.com/DeBankDeFi/db-replicator/pkg/kafka"
 	"github.com/DeBankDeFi/db-replicator/pkg/pb"
 	"github.com/DeBankDeFi/db-replicator/pkg/s3"
 	"github.com/DeBankDeFi/db-replicator/pkg/utils"
+	"github.com/avast/retry-go/v4"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
 )
@@ -159,7 +161,14 @@ func (w *Writer) WriteBlockToS3(info *pb.BlockInfo, batchs []db.BatchWithID) (er
 	block.Info.BlockType = pb.BlockInfo_DATA
 	block.Info.BlockSize = int64(proto.Size(block))
 	// commit to s3.
-	err = w.s3.PutBlock(context.Background(), block)
+	err = retry.Do(
+		func() error {
+			return w.s3.PutBlock(context.Background(), block)
+		},
+		retry.Attempts(3),
+		retry.Delay(200*time.Millisecond),
+		retry.LastErrorOnly(true),
+	)
 	if err != nil {
 		return err
 	}
@@ -196,7 +205,14 @@ func (w *Writer) WriteBlockHeaderToS3(info *pb.BlockInfo, batchs []db.BatchWithI
 	}
 	blockHeader.Info.BlockType = pb.BlockInfo_HEADER
 	// commit to s3.
-	err = w.s3.PutBlock(context.Background(), blockHeader)
+	err = retry.Do(
+		func() error {
+			return w.s3.PutBlock(context.Background(), blockHeader)
+		},
+		retry.Attempts(3),
+		retry.Delay(200*time.Millisecond),
+		retry.LastErrorOnly(true),
+	)
 	if err != nil {
 		return err
 	}
@@ -229,10 +245,25 @@ func (w *Writer) WriteBlockHeaderToKafka() (err error) {
 	if w.stop {
 		return utils.ErrWriterStopped
 	}
-	err = w.kafka.Broadcast(context.Background(), w.lastBlockHeader)
-	if err != nil {
-		return err
-	}
+	retry.Do(
+		func() error {
+			lastOffset, err := w.kafka.LastRemoteWriterOffset()
+			if err != nil {
+				return err
+			}
+			if lastOffset == w.lastBlockHeader.MsgOffset {
+				return nil
+			}
+			err = w.kafka.Broadcast(context.Background(), w.lastBlockHeader)
+			if err != nil {
+				return err
+			}
+			return nil
+		},
+		retry.Attempts(10),
+		retry.Delay(200*time.Millisecond),
+		retry.LastErrorOnly(true),
+	)
 	utils.Logger().Info("WriteBlockHeaderToKafka sucess", zap.Any("lastBlockHeader", w.lastBlockHeader))
 	return nil
 }

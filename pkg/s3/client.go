@@ -8,7 +8,6 @@ import (
 
 	"github.com/DeBankDeFi/db-replicator/pkg/pb"
 	"github.com/DeBankDeFi/db-replicator/pkg/utils"
-	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/proto"
@@ -91,7 +90,6 @@ func (c *Client) PutBlock(ctx context.Context, block *pb.Block) (err error) {
 	if err != nil {
 		return err
 	}
-	utils.Logger().Info("put file", zap.Int("size", len(data)), zap.Any("info", block.Info))
 	client, err := c.s3client.PutBlock(ctx)
 	if err != nil {
 		return err
