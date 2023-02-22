@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.2.0
 // - protoc             v3.21.10
-// source: remote.proto
+// source: pkg/pb/remote.proto
 
 package pb
 
@@ -620,5 +620,5 @@ var Remote_ServiceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 		},
 	},
-	Metadata: "remote.proto",
+	Metadata: "pkg/pb/remote.proto",
 }

@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/DeBankDeFi/db-replicator/pkg/db"
+	"github.com/DeBankDeFi/db-replicator/pkg/etcd"
 	"github.com/DeBankDeFi/db-replicator/pkg/kafka"
 	"github.com/DeBankDeFi/db-replicator/pkg/pb"
 	"github.com/DeBankDeFi/db-replicator/pkg/s3"
@@ -22,11 +23,12 @@ type Reader struct {
 	s3     *s3.Client
 	kafka  *kafka.KafkaClient
 	broker *broker
+	srv    *grpc.Server
+	etcd   *etcd.EtcdClient
 	pb.UnimplementedRemoteServer
-	srv *grpc.Server
 
 	lastBlockHeader *pb.BlockInfo
-	resetC          <-chan *utils.Config
+	resetC          <-chan string
 
 	rootCtx   context.Context
 	cancelFn  context.CancelFunc
@@ -81,14 +83,24 @@ func NewReader(config *utils.Config, dbPool *db.DBPool, resetChan <-chan string)
 		return nil, err
 	}
 
+	etcd, err := etcd.NewEtcdClient(config.EtcdAddrs, env, chainId, 60)
+	if err != nil {
+		return nil, err
+	}
+
 	rootCtx, cancelFn := context.WithCancel(context.Background())
+
+	resetC := etcd.WatchLeader(rootCtx)
+
 	reader = &Reader{
 		config:          config,
 		dbPool:          dbPool,
 		s3:              s3,
 		kafka:           kafka,
+		etcd:            etcd,
 		broker:          newBroker(lastBlockHeader.MsgOffset),
 		lastBlockHeader: lastBlockHeader,
+		resetC:          resetC,
 		rootCtx:         rootCtx,
 		cancelFn:        cancelFn,
 		stopdoneC:       make(chan struct{}),

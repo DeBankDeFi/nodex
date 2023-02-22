@@ -1,7 +1,7 @@
 package utils
 
 import (
-	"errors"
+	"fmt"
 	"math"
 	"sync"
 	"sync/atomic"
@@ -9,11 +9,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials/insecure"
-)
-
-var (
-	ErrNotFoundClient = errors.New("not found grpc conn")
-	ErrConnShutdown   = errors.New("grpc conn shutdown")
 )
 
 const ConnNum = 32
@@ -30,13 +25,7 @@ func NewClientPool(target string) (*ClientPool, error) {
 		next:   0,
 		target: target,
 	}
-	for i := 0; i < ConnNum; i++ {
-		client, err := pool.connect()
-		if err != nil {
-			return nil, err
-		}
-		pool.conns[i] = client
-	}
+	pool.connectAll()
 	return pool, nil
 }
 
@@ -44,21 +33,23 @@ func CheckConnState(conn *grpc.ClientConn) error {
 	state := conn.GetState()
 	switch state {
 	case connectivity.TransientFailure, connectivity.Shutdown:
-		return ErrConnShutdown
+		return fmt.Errorf("grpc connection state is %s", state.String())
 	}
 
 	return nil
 }
 
-func (cc *ClientPool) connect() (*grpc.ClientConn, error) {
-	conn, err := grpc.Dial(cc.target, grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(math.MaxInt32),
-			grpc.MaxCallSendMsgSize(math.MaxInt32)))
-	if err != nil {
-		return nil, err
+func (cc *ClientPool) connectAll() error {
+	for i := 0; i < ConnNum; i++ {
+		conn, err := grpc.Dial(cc.target, grpc.WithTransportCredentials(insecure.NewCredentials()),
+			grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(math.MaxInt32),
+				grpc.MaxCallSendMsgSize(math.MaxInt32)))
+		if err != nil {
+			return err
+		}
+		cc.conns[i] = conn
 	}
-
-	return conn, nil
+	return nil
 }
 
 func (cc *ClientPool) GetConn() (*grpc.ClientConn, int64, error) {
@@ -87,11 +78,7 @@ func (cc *ClientPool) ResetConn(idx int64) (*grpc.ClientConn, error) {
 		return conn, nil
 	}
 
-	conn, err := cc.connect()
-	if err != nil {
-		return nil, err
-	}
-
-	cc.conns[idx] = conn
+	cc.connectAll()
+	conn = cc.conns[idx]
 	return conn, nil
 }

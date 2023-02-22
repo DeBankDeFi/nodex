@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.2.0
 // - protoc             v3.21.10
-// source: store.proto
+// source: pkg/pb/store.proto
 
 package pb
 
@@ -343,5 +343,5 @@ var S3Proxy_ServiceDesc = grpc.ServiceDesc{
 			ClientStreams: true,
 		},
 	},
-	Metadata: "store.proto",
+	Metadata: "pkg/pb/store.proto",
 }

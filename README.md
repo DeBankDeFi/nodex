@@ -16,4 +16,6 @@ Go >= 1.18
 
 ## Build
 
+1. 生成protobuf文件
+`protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative pb/*.proto`
 TODO

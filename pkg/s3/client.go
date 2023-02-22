@@ -15,7 +15,9 @@ import (
 
 type Client struct {
 	s3client pb.S3ProxyClient
+	conn     *grpc.ClientConn
 	cache    *utils.Cache
+	addr     string
 }
 
 func NewClient(addr string) (*Client, error) {
@@ -26,12 +28,39 @@ func NewClient(addr string) (*Client, error) {
 		return nil, err
 	}
 	return &Client{
+		conn:     conn,
 		s3client: pb.NewS3ProxyClient(conn),
 		cache:    utils.NewCache(MaxCacheSize),
+		addr:     addr,
 	}, nil
 }
 
+func (c *Client) GetConn() *grpc.ClientConn {
+	return c.conn
+}
+
+func (c *Client) ResetConn() error {
+	if c.conn != nil {
+		if utils.CheckConnState(c.conn) == nil {
+			return nil
+		}
+		c.conn.Close()
+	}
+	conn, err := grpc.Dial(c.addr, grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(math.MaxInt32),
+			grpc.MaxCallSendMsgSize(math.MaxInt32)))
+	if err != nil {
+		return err
+	}
+	c.s3client = pb.NewS3ProxyClient(conn)
+	return nil
+}
+
 func (c *Client) GetBlock(ctx context.Context, info *pb.BlockInfo, noCache bool) (header *pb.Block, err error) {
+	err = c.ResetConn()
+	if err != nil {
+		return nil, err
+	}
 	commonPrefix := utils.CommonPrefix(info.Env, info.ChainId, info.Role, info.BlockType)
 	lru := c.cache.GetOrCreatePrefixCache(commonPrefix)
 	key := utils.InfoToPrefix(info)
@@ -86,6 +115,10 @@ func (c *Client) getBlock(ctx context.Context, info *pb.BlockInfo, noCache bool)
 }
 
 func (c *Client) PutBlock(ctx context.Context, block *pb.Block) (err error) {
+	err = c.ResetConn()
+	if err != nil {
+		return err
+	}
 	data, err := proto.Marshal(block)
 	if err != nil {
 		return err
@@ -122,10 +155,15 @@ func (c *Client) PutBlock(ctx context.Context, block *pb.Block) (err error) {
 	return nil
 }
 
-func (c *Client) ListHeaderStartAt(ctx context.Context, chainId, env string, blockNum int64, count int64, after int64) (info []*pb.BlockInfo, err error) {
+func (c *Client) ListHeaderStartAt(ctx context.Context, chainId, env, role string, blockNum int64, count int64, after int64) (info []*pb.BlockInfo, err error) {
+	err = c.ResetConn()
+	if err != nil {
+		return nil, err
+	}
 	rsp, err := c.s3client.ListHeaderStartAt(ctx, &pb.ListHeaderStartAtRequest{
 		ChainId:        chainId,
 		Env:            env,
+		Role:           role,
 		BlockNum:       blockNum,
 		CountNum:       count,
 		AfterMsgOffset: after,

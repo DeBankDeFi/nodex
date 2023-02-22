@@ -209,8 +209,8 @@ func (w *Writer) WriteBlockHeaderToS3(info *pb.BlockInfo, batchs []db.BatchWithI
 		func() error {
 			return w.s3.PutBlock(context.Background(), blockHeader)
 		},
-		retry.Attempts(3),
-		retry.Delay(500*time.Millisecond),
+		retry.Attempts(10),
+		retry.Delay(5*time.Second),
 		retry.LastErrorOnly(true),
 	)
 	if err != nil {
@@ -260,8 +260,8 @@ func (w *Writer) WriteBlockHeaderToKafka() (err error) {
 			}
 			return nil
 		},
-		retry.Attempts(5),
-		retry.Delay(1*time.Millisecond),
+		retry.Attempts(10),
+		retry.Delay(5*time.Second),
 		retry.LastErrorOnly(true),
 	)
 	utils.Logger().Info("WriteBlockHeaderToKafka sucess", zap.Any("lastBlockHeader", w.lastBlockHeader))

@@ -56,10 +56,10 @@ func (r *Reader) fetchAndCommit() error {
 	return nil
 }
 
-func (r *Reader) reset(config *utils.Config) error {
-	topic := utils.Topic(config.Env, config.ChainId, config.Role)
+func (r *Reader) reset(role string) error {
+	topic := utils.Topic(r.config.Env, r.config.ChainId, role)
 	r.kafka.ResetTopic(topic)
-	infos, err := r.s3.ListHeaderStartAt(r.rootCtx, config.ChainId, config.Env,
+	infos, err := r.s3.ListHeaderStartAt(r.rootCtx, r.config.ChainId, r.config.Env, role,
 		r.lastBlockHeader.BlockNum-1, 5, r.lastBlockHeader.MsgOffset)
 	if err != nil {
 		utils.Logger().Error("ListHeaderStartAt error", zap.Error(err))
@@ -68,18 +68,18 @@ func (r *Reader) reset(config *utils.Config) error {
 	for _, info := range infos {
 		if info.BlockHash == r.lastBlockHeader.BlockHash {
 			r.lastBlockHeader = info
-			r.config = config
+			r.config.Role = role
 			return nil
 		}
 	}
-	infos, err = r.s3.ListHeaderStartAt(r.rootCtx, config.ChainId, config.Env,
+	infos, err = r.s3.ListHeaderStartAt(r.rootCtx, r.config.ChainId, r.config.Env, role,
 		r.lastBlockHeader.BlockNum-128, 5, -1)
 	if err != nil {
 		utils.Logger().Error("ListHeaderStartAt error", zap.Error(err))
 		return err
 	}
 	r.lastBlockHeader = infos[0]
-	r.config = config
+	r.config.Role = role
 	return nil
 }
 
@@ -92,8 +92,12 @@ func (r *Reader) fetchRun() {
 			if err != nil {
 				utils.Logger().Error("fetchAndCommit error", zap.Error(err))
 			}
-		case config := <-r.resetC:
-			err := r.reset(config)
+		case role := <-r.resetC:
+			utils.Logger().Info("reset", zap.Any("new role", role), zap.Any("old role", r.config.Role))
+			if role == r.config.Role || role == "" {
+				continue
+			}
+			err := r.reset(role)
 			if err != nil {
 				utils.Logger().Error("reset error", zap.Error(err))
 			}

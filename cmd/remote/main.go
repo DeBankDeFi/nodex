@@ -4,6 +4,7 @@ import (
 	"flag"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/DeBankDeFi/db-replicator/pkg/db"
@@ -22,7 +23,10 @@ func main() {
 	flag.StringVar(&config.DBInfoPath, "db_info_path", "dbinfo.json", "db info path")
 	flag.IntVar(&config.ReorgDeep, "reorg_deep", 128, "chain reorg deep")
 	flag.IntVar(&config.DBCacheSize, "db_cache_size", 2048, "db cache size in MB")
+	var etcdAddrs string
+	flag.StringVar(&etcdAddrs, "etcd_addrs", "127.0.0.1:2379,127.0.0.1:4001", "etcd addrs")
 	flag.Parse()
+	config.EtcdAddrs = strings.Split(etcdAddrs, ",")
 	stopChan := make(chan os.Signal, 1)
 
 	signal.Notify(stopChan, syscall.SIGTERM, syscall.SIGINT)

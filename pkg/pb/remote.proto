@@ -1,9 +1,9 @@
 syntax = "proto3";
 package pb;
 
-option go_package = "pkg/pb";
+option go_package = "github.com/DeBankDeFi/db-replicator/pkg/pb";
 
-import "block.proto";
+import "pkg/pb/block.proto";
 
 message OpenRequest {
     string type = 1;

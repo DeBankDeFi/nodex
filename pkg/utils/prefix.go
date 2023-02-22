@@ -8,12 +8,16 @@ import (
 	"github.com/DeBankDeFi/db-replicator/pkg/pb"
 )
 
+func TopicPrefix(env, chainId, role string) string {
+	return fmt.Sprintf("%s/%s/%s", env, chainId, role)
+}
+
 func CommonPrefix(env, chainId, role string, blockTy pb.BlockInfo_BlockType) string {
 	switch blockTy {
 	case pb.BlockInfo_HEADER:
-		return fmt.Sprintf("%s/%s/%s/header", env, chainId, role)
+		return fmt.Sprintf("%s/header", TopicPrefix(env, chainId, role))
 	case pb.BlockInfo_DATA:
-		return fmt.Sprintf("%s/%s/%s/block", env, chainId, role)
+		return fmt.Sprintf("%s/block", TopicPrefix(env, chainId, role))
 	default:
 		panic("invalid block type")
 	}
