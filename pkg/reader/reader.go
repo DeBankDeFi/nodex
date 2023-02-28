@@ -5,8 +5,8 @@ import (
 	"sync"
 
 	"github.com/DeBankDeFi/db-replicator/pkg/db"
-	"github.com/DeBankDeFi/db-replicator/pkg/etcd"
 	"github.com/DeBankDeFi/db-replicator/pkg/kafka"
+	"github.com/DeBankDeFi/db-replicator/pkg/ndrc"
 	"github.com/DeBankDeFi/db-replicator/pkg/pb"
 	"github.com/DeBankDeFi/db-replicator/pkg/s3"
 	"github.com/DeBankDeFi/db-replicator/pkg/utils"
@@ -19,12 +19,12 @@ type Reader struct {
 
 	config *utils.Config
 
-	dbPool *db.DBPool
-	s3     *s3.Client
-	kafka  *kafka.KafkaClient
-	broker *broker
-	srv    *grpc.Server
-	etcd   *etcd.EtcdClient
+	dbPool     *db.DBPool
+	s3         *s3.Client
+	kafka      *kafka.KafkaClient
+	ndrcReader *ndrc.ReaderClient
+	broker     *broker
+	srv        *grpc.Server
 	pb.UnimplementedRemoteServer
 
 	lastBlockHeader *pb.BlockInfo
@@ -82,22 +82,21 @@ func NewReader(config *utils.Config, dbPool *db.DBPool, resetChan <-chan string)
 	if err != nil {
 		return nil, err
 	}
-
-	etcd, err := etcd.NewEtcdClient(config.EtcdAddrs, env, chainId, 60)
+	ndrcReader, err := ndrc.NewReaderClient(config.NdrcAddr)
 	if err != nil {
 		return nil, err
 	}
 
 	rootCtx, cancelFn := context.WithCancel(context.Background())
 
-	resetC := etcd.WatchLeader(rootCtx)
+	resetC := ndrcReader.WatchRole(rootCtx)
 
 	reader = &Reader{
 		config:          config,
 		dbPool:          dbPool,
 		s3:              s3,
 		kafka:           kafka,
-		etcd:            etcd,
+		ndrcReader:      ndrcReader,
 		broker:          newBroker(lastBlockHeader.MsgOffset),
 		lastBlockHeader: lastBlockHeader,
 		resetC:          resetC,

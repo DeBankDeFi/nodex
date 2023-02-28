@@ -1,0 +1,33 @@
+syntax = "proto3";
+package pb;
+
+option go_package = "github.com/DeBankDeFi/db-replicator/pkg/pb";
+
+import "pkg/pb/node.proto";
+
+enum WriterEvent {
+  UNKNOWN_WRITE_EVENT = 0;
+  ROLE_CHANGED = 1;
+  OUT_OF_SYNC = 2;
+}
+
+message WriterEventResponse {
+  WriterEvent event = 1;
+  NodeId leader = 2;
+}
+
+message WriterEventSubcribeRequest {
+  int64 timeout = 1; // optional, watch timeout, watch permanently if timeout is zero.
+}
+
+message ListReaderRequest {
+}
+
+message ListReaderResponse {
+  repeated NodeId readers = 1;
+}
+
+service SubscribeService {
+  rpc WatchWriterEvent(WriterEventSubcribeRequest) returns (stream WriterEventResponse) {};
+  rpc ListReader(ListReaderRequest) returns (ListReaderResponse) {};
+}

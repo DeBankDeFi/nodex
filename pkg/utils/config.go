@@ -19,7 +19,7 @@ type Config struct {
 	DBInfoPath       string
 	ReorgDeep        int
 	DBCacheSize      int
-	EtcdAddrs        []string
+	NdrcAddr         string
 }
 
 // NewDevelopmentConfig returns a Dev env Config with default values.
@@ -35,7 +35,7 @@ func NewDevelopmentConfig() *Config {
 		DBInfoPath:       "dbinfo.json",
 		ReorgDeep:        128,
 		DBCacheSize:      1 << 32,
-		EtcdAddrs:        []string{"127.0.0.1:8801", "127.0.0.1:8802"},
+		NdrcAddr:         "127.0.0.1:8089",
 	}
 }
 

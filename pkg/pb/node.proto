@@ -1,0 +1,32 @@
+syntax = "proto3";
+package pb;
+
+option go_package = "github.com/DeBankDeFi/db-replicator/pkg/pb";
+
+enum NodeRole {
+  UNKNOWN_ROLE = 0;
+  WRITERM = 1; // Master Writer
+  WRITERB = 2; // Backup Writer
+  READER = 3; // Reader
+}
+
+enum NodeStatus {
+  UNKNOWN_STATUS = 0;
+  SYNCED = 1; // Blockchain data up-to-date, only for Writer node
+  SYNCING = 2; // Blockchain date out-of-date, only for Writer node
+  UNHEALTHY = 3; // Internal unhealthy, either Reader or Writer
+}
+
+message BlockUpdateInfo {
+  int64 block_num = 4;
+  string block_hash = 5;
+}
+
+message NodeId {
+  string env = 1; // 环境
+  string chain_id = 2; // 对应chain的id
+  NodeRole role = 3;
+  string uuid = 4; // 机器唯一标识
+  string endpoint = 5; // 机器ip:port
+  BlockUpdateInfo block_update_info = 6; // 最新区块信息
+}

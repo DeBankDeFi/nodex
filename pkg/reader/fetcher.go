@@ -60,7 +60,7 @@ func (r *Reader) reset(role string) error {
 	topic := utils.Topic(r.config.Env, r.config.ChainId, role)
 	r.kafka.ResetTopic(topic)
 	infos, err := r.s3.ListHeaderStartAt(r.rootCtx, r.config.ChainId, r.config.Env, role,
-		r.lastBlockHeader.BlockNum-1, 5, r.lastBlockHeader.MsgOffset)
+		r.lastBlockHeader.BlockNum-1, 5, -1)
 	if err != nil {
 		utils.Logger().Error("ListHeaderStartAt error", zap.Error(err))
 		return err

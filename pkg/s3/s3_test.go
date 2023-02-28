@@ -47,7 +47,7 @@ func TestS3(t *testing.T) {
 	}
 	wg.Wait()
 
-	infos, err := client.ListHeaderStartAt(context.Background(), "256", "test", 1, 1, -1)
+	infos, err := client.ListHeaderStartAt(context.Background(), "256", "test", "master", 1, 1, -1)
 	require.NoErrorf(t, err, "NewClient error")
 	t.Logf("infos: %v", infos)
 }

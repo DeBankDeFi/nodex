@@ -1,0 +1,25 @@
+syntax = "proto3";
+package pb;
+
+option go_package = "github.com/DeBankDeFi/db-replicator/pkg/pb";
+
+import "pkg/pb/node.proto";
+
+message HeartbeatRequest {
+  NodeId id = 1;
+}
+
+message HeartbeatResponse {
+}
+
+message SetRoleRequest {
+  NodeId id = 1;
+}
+
+message SetRoleResponse {
+}
+
+service HeartbeatService {
+  rpc Report (stream HeartbeatRequest) returns (HeartbeatResponse) {};
+  rpc SetRole (SetRoleRequest) returns (SetRoleResponse) {};
+}
