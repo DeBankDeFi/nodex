@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	BucketName   = "blockchain-replicator"
+	BucketName   = "prod-blockchain-replicator"
 	MaxCacheSize = 256
 	ChunkSize    = 1 << 22
 )

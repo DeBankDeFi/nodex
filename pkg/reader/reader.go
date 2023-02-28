@@ -97,7 +97,7 @@ func NewReader(config *utils.Config, dbPool *db.DBPool, resetChan <-chan string)
 		s3:              s3,
 		kafka:           kafka,
 		ndrcReader:      ndrcReader,
-		broker:          newBroker(lastBlockHeader.MsgOffset),
+		broker:          newBroker(),
 		lastBlockHeader: lastBlockHeader,
 		resetC:          resetC,
 		rootCtx:         rootCtx,

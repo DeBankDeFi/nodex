@@ -16,7 +16,7 @@ type broker struct {
 	subs map[chan *pb.Block]struct{}
 }
 
-func newBroker(lastMsgOffset int64) *broker {
+func newBroker() *broker {
 	return &broker{
 		subs: make(map[chan *pb.Block]struct{}),
 	}
