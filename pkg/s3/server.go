@@ -25,6 +25,7 @@ const (
 	BucketName   = "prod-blockchain-replicator"
 	MaxCacheSize = 256
 	ChunkSize    = 1 << 22
+	Region       = "ap-northeast-1"
 )
 
 type server struct {
@@ -48,7 +49,7 @@ func ListenAndServe(addr string) error {
 }
 
 func NewServer() (*grpc.Server, error) {
-	sdkConfig, err := config.LoadDefaultConfig(context.Background())
+	sdkConfig, err := config.LoadDefaultConfig(context.Background(), config.WithRegion(Region))
 	if err != nil {
 		return nil, err
 	}

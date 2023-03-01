@@ -165,14 +165,14 @@ func (w *Writer) WriteBlockToS3(info *pb.BlockInfo, batchs []db.BatchWithID) (er
 		func() error {
 			return w.s3.PutBlock(context.Background(), block)
 		},
-		retry.Attempts(3),
-		retry.Delay(500*time.Millisecond),
+		retry.Attempts(10),
+		retry.Delay(5*time.Second),
 		retry.LastErrorOnly(true),
 	)
 	if err != nil {
+		utils.Logger().Error("WriteBlockToS3", zap.Error(err))
 		return err
 	}
-	utils.Logger().Debug("WriteBlockToS3", zap.Any("Block.Info", block.Info))
 	return nil
 }
 
