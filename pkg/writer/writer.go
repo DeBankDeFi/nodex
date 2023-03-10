@@ -247,7 +247,7 @@ func (w *Writer) WriteBlockHeaderToKafka() (err error) {
 	}
 	retry.Do(
 		func() error {
-			lastOffset, err := w.kafka.LastRemoteWriterOffset()
+			_, lastOffset, err := w.kafka.RemoteOffset()
 			if err != nil {
 				return err
 			}

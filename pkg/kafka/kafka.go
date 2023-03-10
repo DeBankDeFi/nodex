@@ -37,9 +37,15 @@ func NewKafkaClient(topic string, readerLastOffset int64, addrs ...string) (*Kaf
 		readerLastOffset: readerLastOffset,
 		topic:            topic,
 	}
-	writeLastOffset, err := client.LastRemoteWriterOffset()
+	writeFirstOffset, writeLastOffset, err := client.RemoteOffset()
 	if err != nil {
 		return nil, err
+	}
+	utils.Logger().Info("remote offset", zap.Any("readerLastOffset", readerLastOffset), zap.Any("writeFirstOffset", writeFirstOffset), zap.Any("writeLastOffset ", writeLastOffset))
+
+	if readerLastOffset < writeFirstOffset-1 {
+		utils.Logger().Error("remote first offset less than reader last offset", zap.Any("readerLastOffset", readerLastOffset), zap.Any("writeFirstOffset", writeFirstOffset))
+		return nil, errors.New("remote first offset less than reader last offset")
 	}
 	client.writerLastOffset = writeLastOffset
 	return client, nil
@@ -53,11 +59,15 @@ func (k *KafkaClient) LastWriterOffset() int64 {
 	return k.writerLastOffset
 }
 
-func (k *KafkaClient) LastRemoteWriterOffset() (int64, error) {
+func (k *KafkaClient) RemoteOffset() (firstOffset int64, lastOffset int64, err error) {
 	rsp, err := k.client.ListOffsets(context.Background(), &kafka.ListOffsetsRequest{
 		Addr: k.client.Addr,
 		Topics: map[string][]kafka.OffsetRequest{
 			k.topic: {
+				{
+					Partition: 0,
+					Timestamp: kafka.FirstOffset,
+				},
 				{
 					Partition: 0,
 					Timestamp: kafka.LastOffset,
@@ -67,9 +77,9 @@ func (k *KafkaClient) LastRemoteWriterOffset() (int64, error) {
 	},
 	)
 	if err != nil {
-		return -1, err
+		return -1, -1, err
 	}
-	return rsp.Topics[k.topic][0].LastOffset - 1, nil
+	return rsp.Topics[k.topic][0].FirstOffset, rsp.Topics[k.topic][0].LastOffset - 1, nil
 }
 
 func (k *KafkaClient) IncrementLastReaderOffset() {
@@ -130,6 +140,9 @@ func (k *KafkaClient) FetchStart(ctx context.Context, start int64) (infos []*pb.
 }
 
 func (k *KafkaClient) fetch(ctx context.Context, start int64) (records []*kafka.Record, err error) {
+	if start <= 0 {
+		start = kafka.FirstOffset
+	}
 	rsp, err := k.client.Fetch(ctx, &kafka.FetchRequest{
 		Topic:     k.topic,
 		Partition: 0,
@@ -138,7 +151,9 @@ func (k *KafkaClient) fetch(ctx context.Context, start int64) (records []*kafka.
 		MaxWait:   KafkaMaxWait,
 		Offset:    start,
 	})
-	if err != nil {
+
+	if err != nil || rsp.Error != nil {
+		utils.Logger().Error("fetch", zap.Error(err), zap.Error(rsp.Error))
 		return nil, err
 	}
 	for {

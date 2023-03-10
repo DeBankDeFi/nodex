@@ -21,3 +21,5 @@ go.work
 cmd/remote/remote
 cmd/s3/s3
 bin
+remote
+db_info.json
