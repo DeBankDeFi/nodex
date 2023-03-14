@@ -66,7 +66,7 @@ func PrefixToHeaderInfo(key string) (info *pb.BlockInfo, err error) {
 	if err != nil {
 		return nil, err
 	}
-	info.BlockHash = keys[5]
+	info.BlockHash = keys[6]
 	return info, nil
 }
 

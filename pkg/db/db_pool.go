@@ -1,6 +1,8 @@
 package db
 
 import (
+	"encoding/binary"
+	"fmt"
 	"math"
 	"sync"
 
@@ -108,6 +110,14 @@ func (p *DBPool) GetBlockInfo() (header *pb.BlockInfo, err error) {
 		BlockNum:  -1,
 		MsgOffset: -1,
 	}
+	if header.BlockNum == -1 {
+		blockNum, blockHash, err := getRawBlockInfoFromDB(db.db)
+		if err != nil {
+			return nil, err
+		}
+		header.BlockNum = blockNum
+		header.BlockHash = blockHash
+	}
 	if err == leveldb.ErrNotFound || len(lastMsgHeadBuf) == 0 {
 		return header, nil
 	}
@@ -115,6 +125,20 @@ func (p *DBPool) GetBlockInfo() (header *pb.BlockInfo, err error) {
 		return nil, nil
 	}
 	return header, nil
+}
+
+func getRawBlockInfoFromDB(db DB) (blockNum int64, blockHash string, err error) {
+	data, _ := db.Get([]byte("LastBlock"))
+	if len(data) == 0 {
+		return -1, "", fmt.Errorf("LastBlock not found")
+	}
+	hash := utils.BytesToHash(data)
+	data, _ = db.Get(append([]byte("H"), hash[:]...))
+	if len(data) != 8 {
+		return -1, "", fmt.Errorf("block number not found")
+	}
+	number := binary.BigEndian.Uint64(data)
+	return int64(number), utils.HexEncode(hash[:]), nil
 }
 
 // GetDBInfo returns all opened DBs.

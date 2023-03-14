@@ -67,6 +67,24 @@ func NewWriter(config *utils.Config, dbPool *db.DBPool) (writer *Writer, err err
 func (w *Writer) Recovery() error {
 	w.Lock()
 	defer w.Unlock()
+	if w.lastBlockHeader.MsgOffset == -1 && w.lastBlockHeader.BlockNum != -1 {
+		infos, err := w.s3.ListHeaderStartAt(context.Background(), w.config.ChainId, w.config.Env, w.config.Role,
+			w.lastBlockHeader.BlockNum-1, 5, -1)
+		if err != nil {
+			utils.Logger().Error("ListHeaderStartAt error", zap.Error(err))
+			return err
+		}
+		for _, info := range infos {
+			if info.BlockHash == w.lastBlockHeader.BlockHash || info.BlockNum == w.lastBlockHeader.BlockNum {
+				w.lastBlockHeader = info
+				break
+			}
+			if info.BlockNum == w.lastBlockHeader.BlockNum+1 {
+				w.lastBlockHeader.MsgOffset = info.MsgOffset - 1
+				break
+			}
+		}
+	}
 	startWriteOffset := w.lastBlockHeader.MsgOffset + 1
 	lastWriteOffset := w.kafka.LastWriterOffset()
 	for startWriteOffset <= lastWriteOffset {

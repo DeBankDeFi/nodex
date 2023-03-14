@@ -76,6 +76,25 @@ func NewReader(config *utils.Config, dbPool *db.DBPool, resetChan <-chan string)
 		role = config.Role
 	}
 
+	if lastBlockHeader.BlockNum != -1 && lastBlockHeader.MsgOffset == -1 {
+		infos, err := s3.ListHeaderStartAt(context.Background(), chainId, env, role,
+			lastBlockHeader.BlockNum-1, 5, -1)
+		if err != nil {
+			utils.Logger().Error("ListHeaderStartAt error", zap.Error(err))
+			return nil, err
+		}
+		for _, info := range infos {
+			if info.BlockHash == lastBlockHeader.BlockHash || info.BlockNum == lastBlockHeader.BlockNum {
+				lastBlockHeader = info
+				break
+			}
+			if info.BlockNum == lastBlockHeader.BlockNum+1 {
+				lastBlockHeader.MsgOffset = info.MsgOffset - 1
+				break
+			}
+		}
+	}
+
 	topic := utils.Topic(env, chainId, role)
 
 	kafka, err := kafka.NewKafkaClient(topic, lastBlockHeader.MsgOffset, config.KafkaAddr)
