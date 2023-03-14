@@ -49,6 +49,9 @@ func NewWriter(config *utils.Config, dbPool *db.DBPool) (writer *Writer, err err
 	if err != nil {
 		return nil, err
 	}
+	lastBlockHeader.Role = config.Role
+	lastBlockHeader.Env = config.Env
+	lastBlockHeader.ChainId = config.ChainId
 
 	utils.Logger().Info("NewWriter", zap.Any("lastBlockHeader", lastBlockHeader))
 
