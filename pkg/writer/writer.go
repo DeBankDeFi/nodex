@@ -40,7 +40,8 @@ func NewWriter(config *utils.Config, dbPool *db.DBPool) (writer *Writer, err err
 
 	topic := utils.Topic(config.Env, config.ChainId, config.Role)
 
-	kafka, err := kafka.NewKafkaClient(topic, -1, config.KafkaAddr)
+	// golang max value of int64
+	kafka, err := kafka.NewKafkaClient(topic, 1<<63-1, config.KafkaAddr)
 	if err != nil {
 		return nil, err
 	}
@@ -95,11 +96,9 @@ func (w *Writer) Recovery() error {
 		if err != nil {
 			return err
 		}
-		if len(infos) > 0 {
-			if len(infos) != 1 {
-				return utils.ErrWriterRecovey
-			}
-			info := infos[0]
+		utils.Logger().Info("Recovery", zap.Int64("startWriteOffset", startWriteOffset), zap.Int64("lastWriteOffset", lastWriteOffset),
+			zap.Any("infos.Len", len(infos)))
+		for _, info := range infos {
 			utils.Logger().Info("Recovery", zap.Any("lastBlockHeader", w.lastBlockHeader), zap.Any("info", info))
 			w.lastBlockHeader = info
 			headerFile, err := w.s3.GetBlock(context.Background(), w.lastBlockHeader, false)
@@ -125,10 +124,13 @@ func (w *Writer) Recovery() error {
 				return err
 			}
 			w.lastBlockHeader = headerFile.Info
+			w.Unlock()
 			err = w.WriteBlockHeaderToDB(w.lastBlockHeader, make([]db.BatchWithID, 0))
 			if err != nil {
 				return err
 			}
+			w.Lock()
+			startWriteOffset = w.lastBlockHeader.MsgOffset + 1
 		}
 	}
 
