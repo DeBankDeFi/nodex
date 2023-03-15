@@ -152,9 +152,13 @@ func (k *KafkaClient) fetch(ctx context.Context, start int64) (records []*kafka.
 		Offset:    start,
 	})
 
-	if err != nil || rsp.Error != nil {
-		utils.Logger().Error("fetch", zap.Error(err), zap.Error(rsp.Error))
+	if err != nil {
+		utils.Logger().Error("fetch", zap.Any("err", err))
 		return nil, err
+	}
+	if rsp.Error != nil {
+		utils.Logger().Error("fetch", zap.Any("kafka err", rsp.Error))
+		return nil, rsp.Error
 	}
 	for {
 		record, err := rsp.Records.ReadRecord()
