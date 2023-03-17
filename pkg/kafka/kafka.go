@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	KafkaMaxBytes = 1 << 22
+	KafkaMaxBytes = 1 << 21
 	KafkaMaxWait  = 500 * time.Millisecond
 )
 
@@ -88,6 +88,10 @@ func (k *KafkaClient) IncrementLastReaderOffset() {
 
 func (k *KafkaClient) LastReaderOffset() int64 {
 	return k.readerLastOffset
+}
+
+func (k *KafkaClient) ResetLastReaderOffset(offset int64) {
+	k.readerLastOffset = offset
 }
 
 func (k *KafkaClient) Broadcast(ctx context.Context, info *pb.BlockInfo) error {

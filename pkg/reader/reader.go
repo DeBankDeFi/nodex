@@ -35,7 +35,7 @@ type Reader struct {
 	stopdoneC chan struct{} // Reader shutdown complete
 }
 
-func NewReader(config *utils.Config, dbPool *db.DBPool, resetChan <-chan string) (reader *Reader, err error) {
+func NewReader(config *utils.Config, dbPool *db.DBPool) (reader *Reader, err error) {
 	s3, err := s3.NewClient(config.S3ProxyAddr)
 	if err != nil {
 		return nil, err
@@ -108,7 +108,10 @@ func NewReader(config *utils.Config, dbPool *db.DBPool, resetChan <-chan string)
 
 	rootCtx, cancelFn := context.WithCancel(context.Background())
 
-	resetC := ndrcReader.WatchRole(rootCtx)
+	resetC, err := ndrcReader.WatchRole(rootCtx)
+	if err != nil {
+		return nil, err
+	}
 
 	reader = &Reader{
 		config:          config,

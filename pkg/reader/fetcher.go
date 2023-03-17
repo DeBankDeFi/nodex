@@ -1,6 +1,7 @@
 package reader
 
 import (
+	"runtime"
 	"time"
 
 	"github.com/DeBankDeFi/db-replicator/pkg/pb"
@@ -14,7 +15,10 @@ func (r *Reader) fetchAndCommit() error {
 		utils.Logger().Error("ListHeaderStartAt error", zap.Error(err))
 		return err
 	}
-	for _, info := range infos {
+	for i, info := range infos {
+		if i%100 == 0 {
+			runtime.GC()
+		}
 		utils.Logger().Info("new header", zap.Any("BlockNum", info.BlockNum), zap.Any("MsgOffset", info.MsgOffset))
 		headerFile, err := r.s3.GetBlock(r.rootCtx, info, true)
 		if err != nil {
@@ -69,6 +73,7 @@ func (r *Reader) reset(role string) error {
 		if info.BlockHash == r.lastBlockHeader.BlockHash {
 			r.lastBlockHeader = info
 			r.config.Role = role
+			r.kafka.ResetLastReaderOffset(info.MsgOffset)
 			return nil
 		}
 	}
@@ -80,6 +85,7 @@ func (r *Reader) reset(role string) error {
 	}
 	r.lastBlockHeader = infos[0]
 	r.config.Role = role
+	r.kafka.ResetLastReaderOffset(r.lastBlockHeader.MsgOffset)
 	return nil
 }
 

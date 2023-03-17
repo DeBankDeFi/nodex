@@ -2,6 +2,7 @@ package reader
 
 import (
 	"context"
+	"runtime"
 	"sync"
 	"time"
 
@@ -98,7 +99,10 @@ func (w *Writer) Recovery() error {
 		}
 		utils.Logger().Info("Recovery", zap.Int64("startWriteOffset", startWriteOffset), zap.Int64("lastWriteOffset", lastWriteOffset),
 			zap.Any("infos.Len", len(infos)))
-		for _, info := range infos {
+		for i, info := range infos {
+			if i%100 == 0 {
+				runtime.GC()
+			}
 			utils.Logger().Info("Recovery", zap.Any("lastBlockHeader", w.lastBlockHeader), zap.Any("info", info))
 			w.lastBlockHeader = info
 			headerFile, err := w.s3.GetBlock(context.Background(), w.lastBlockHeader, false)

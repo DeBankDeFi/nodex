@@ -30,7 +30,7 @@ func main() {
 
 	pool := db.NewDBPool()
 
-	reader, err := reader.NewReader(config, pool, nil)
+	reader, err := reader.NewReader(config, pool)
 	if err != nil {
 		panic(err)
 	}

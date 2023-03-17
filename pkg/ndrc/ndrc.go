@@ -2,10 +2,12 @@ package ndrc
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/DeBankDeFi/db-replicator/pkg/pb"
 	"github.com/DeBankDeFi/db-replicator/pkg/utils"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -28,10 +30,25 @@ func NewReaderClient(addr string) (*ReaderClient, error) {
 	}, nil
 }
 
-func (rc *ReaderClient) WatchRole(ctx context.Context) <-chan string {
+func (rc *ReaderClient) WatchRole(ctx context.Context) (<-chan string, error) {
+	conn, err := grpc.Dial(rc.addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return nil, fmt.Errorf("connect to ndrc failed: %v", err)
+	}
+	rc.ndrcclient = pb.NewSubscribeServiceClient(conn)
+	client, err := rc.ndrcclient.WatchWriterEvent(ctx, &pb.WriterEventSubcribeRequest{})
+	if err != nil {
+		return nil, fmt.Errorf("watch role failed: %v", err)
+	}
+	rsp, err := client.Recv()
+	if err != nil {
+		return nil, fmt.Errorf("watch role failed: %v", err)
+	}
+	utils.Logger().Info("WatchRole start", zap.Any("init", rsp))
+	client.CloseSend()
 	ch := make(chan string)
 	go rc.watchRole(ctx, ch)
-	return ch
+	return ch, nil
 }
 
 func (rc *ReaderClient) watchRole(ctx context.Context, ch chan<- string) {
