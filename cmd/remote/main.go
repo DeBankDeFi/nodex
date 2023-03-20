@@ -6,6 +6,9 @@ import (
 	"os/signal"
 	"syscall"
 
+	"net/http"
+	_ "net/http/pprof"
+
 	"github.com/DeBankDeFi/db-replicator/pkg/db"
 	"github.com/DeBankDeFi/db-replicator/pkg/reader"
 	"github.com/DeBankDeFi/db-replicator/pkg/utils"
@@ -34,6 +37,10 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+
+	go func() {
+		http.ListenAndServe("localhost:6060", nil)
+	}()
 
 	err = reader.Start()
 	if err != nil {
