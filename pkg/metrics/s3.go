@@ -36,17 +36,17 @@ func NewS3Metrics() *S3Metrics {
 }
 
 func (m *S3Metrics) ObserveWriteLatency(bucket string, latency float64) {
-	m.S3WriteLatency.With(bucket).Observe(latency)
+	m.S3WriteLatency.With("bucket", bucket).Observe(latency)
 }
 
 func (m *S3Metrics) ObserveReadLatency(bucket string, latency float64) {
-	m.S3ReadLatency.With(bucket).Observe(latency)
+	m.S3ReadLatency.With("bucket", bucket).Observe(latency)
 }
 
 func (m *S3Metrics) IncreaseWriteSize(bucket string, size int64) {
-	m.S3WriteSize.With(bucket).Add(float64(size))
+	m.S3WriteSize.With("bucket", bucket).Add(float64(size))
 }
 
 func (m *S3Metrics) IncreaseReadSize(bucket string, size int64) {
-	m.S3ReadSize.With(bucket).Add(float64(size))
+	m.S3ReadSize.With("bucket", bucket).Add(float64(size))
 }
