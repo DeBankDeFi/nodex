@@ -9,7 +9,9 @@ import (
 	"math"
 	"net"
 	"sync"
+	"time"
 
+	"github.com/DeBankDeFi/db-replicator/pkg/metrics"
 	"github.com/DeBankDeFi/db-replicator/pkg/pb"
 	"github.com/DeBankDeFi/db-replicator/pkg/utils"
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -33,7 +35,8 @@ type server struct {
 	s3    *s3.Client
 	cache *utils.Cache
 	sync.RWMutex
-	getPool sync.Pool
+	getPool  sync.Pool
+	s3Metric *metrics.S3Metrics
 }
 
 func ListenAndServe(addr string) error {
@@ -65,11 +68,13 @@ func NewServer() (*grpc.Server, error) {
 				return &buf
 			},
 		},
+		s3Metric: metrics.NewS3Metrics(),
 	})
 	return s, nil
 }
 
 func (s *server) s3GetFile(key string) (buf []byte, err error) {
+	timeStart := time.Now()
 	result, err := s.s3.GetObject(context.Background(), &s3.GetObjectInput{
 		Bucket: aws.String(BucketName),
 		Key:    aws.String(key),
@@ -88,6 +93,8 @@ func (s *server) s3GetFile(key string) (buf []byte, err error) {
 	if err != nil {
 		return nil, err
 	}
+	s.s3Metric.ObserveReadLatency(BucketName, float64(time.Since(timeStart).Milliseconds()))
+	s.s3Metric.IncreaseReadSize(BucketName, int64(len(buf)))
 	return buf, nil
 }
 
@@ -151,6 +158,8 @@ func (s *server) PutBlock(client pb.S3Proxy_PutBlockServer) error {
 	}
 	commonPrefix := utils.CommonPrefix(info.Env, info.ChainId, info.Role, info.BlockType)
 	key := utils.InfoToPrefix(info)
+	timeStart := time.Now()
+	bodySize := len(buffer.Bytes())
 	rsp, err := s.s3.PutObject(context.Background(), &s3.PutObjectInput{
 		Bucket: aws.String(BucketName),
 		Key:    aws.String(key),
@@ -159,6 +168,8 @@ func (s *server) PutBlock(client pb.S3Proxy_PutBlockServer) error {
 	if err != nil {
 		return status.Errorf(utils.AwsS3ErrorCode, "PutBlock failed, err : %v", err)
 	}
+	s.s3Metric.ObserveWriteLatency(BucketName, float64(time.Since(timeStart).Milliseconds()))
+	s.s3Metric.IncreaseWriteSize(BucketName, int64(bodySize))
 	utils.Logger().Info("PutBlock", zap.String("key", key), zap.Any("rsp", rsp))
 	lru := s.cache.GetOrCreatePrefixCache(commonPrefix)
 	lru.Insert(key, buffer.Bytes(), info.BlockNum)
@@ -175,6 +186,8 @@ func (s *server) GetFile(ctx context.Context, req *pb.GetFileRequest) (*pb.GetFi
 }
 
 func (s *server) PutFile(ctx context.Context, req *pb.PutFileRequest) (*pb.PutFileReply, error) {
+	bodySize := len(req.Data)
+	timeStart := time.Now()
 	_, err := s.s3.PutObject(ctx, &s3.PutObjectInput{
 		Bucket: aws.String(BucketName),
 		Key:    aws.String(req.Path),
@@ -184,6 +197,8 @@ func (s *server) PutFile(ctx context.Context, req *pb.PutFileRequest) (*pb.PutFi
 		return nil, status.Errorf(utils.AwsS3ErrorCode, "PutFile failed, err : %v", err)
 	}
 	utils.Logger().Info("PutFile", zap.String("key", req.Path), zap.Any("err", err))
+	s.s3Metric.ObserveWriteLatency(BucketName, float64(time.Since(timeStart).Milliseconds()))
+	s.s3Metric.IncreaseWriteSize(BucketName, int64(bodySize))
 	return &pb.PutFileReply{}, nil
 }
 

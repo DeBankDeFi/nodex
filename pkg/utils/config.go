@@ -20,6 +20,7 @@ type Config struct {
 	ReorgDeep        int
 	DBCacheSize      int
 	NdrcAddr         string
+	MetricEndpoint   string
 }
 
 // NewDevelopmentConfig returns a Dev env Config with default values.

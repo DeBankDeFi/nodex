@@ -9,6 +9,7 @@ import (
 	"github.com/DeBankDeFi/db-replicator/pkg/db"
 	"github.com/DeBankDeFi/db-replicator/pkg/pb"
 	"github.com/DeBankDeFi/db-replicator/pkg/utils"
+	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/syndtr/goleveldb/leveldb"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -21,7 +22,10 @@ func (r *Reader) grpcRun(addr string) (*grpc.Server, error) {
 		return nil, err
 	}
 	srv := grpc.NewServer(grpc.MaxRecvMsgSize(math.MaxInt32),
-		grpc.MaxSendMsgSize(math.MaxInt32))
+		grpc.MaxSendMsgSize(math.MaxInt32),
+		grpc.StreamInterceptor(grpc_prometheus.StreamServerInterceptor),
+		grpc.UnaryInterceptor(grpc_prometheus.UnaryServerInterceptor))
+	grpc_prometheus.EnableHandlingTimeHistogram()
 	pb.RegisterRemoteServer(srv, r)
 	r.srv = srv
 	go func() {

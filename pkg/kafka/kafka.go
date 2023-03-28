@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DeBankDeFi/db-replicator/pkg/metrics"
 	"github.com/DeBankDeFi/db-replicator/pkg/pb"
 	"github.com/DeBankDeFi/db-replicator/pkg/utils"
 	"github.com/segmentio/kafka-go"
@@ -24,6 +25,7 @@ type KafkaClient struct {
 	writerLastOffset int64
 	readerLastOffset int64
 	topic            string
+	kafkaMetrics     *metrics.KafkaMetrics
 	sync.RWMutex
 }
 
@@ -36,11 +38,17 @@ func NewKafkaClient(topic string, readerLastOffset int64, addrs ...string) (*Kaf
 		client:           kafka,
 		readerLastOffset: readerLastOffset,
 		topic:            topic,
+		kafkaMetrics:     metrics.NewKafkaMetrics(),
 	}
+
+	client.kafkaMetrics.SwitchTopic("init", topic)
+
 	writeFirstOffset, writeLastOffset, err := client.RemoteOffset()
 	if err != nil {
 		return nil, err
 	}
+	client.kafkaMetrics.IncreaseReaderOffset(topic, readerLastOffset)
+	client.kafkaMetrics.IncreaseWriterOffset(topic, writeLastOffset)
 	utils.Logger().Info("remote offset", zap.Any("readerLastOffset", readerLastOffset), zap.Any("writeFirstOffset", writeFirstOffset), zap.Any("writeLastOffset ", writeLastOffset))
 
 	if readerLastOffset < writeFirstOffset-1 {
@@ -52,6 +60,7 @@ func NewKafkaClient(topic string, readerLastOffset int64, addrs ...string) (*Kaf
 }
 
 func (k *KafkaClient) ResetTopic(topic string) {
+	k.kafkaMetrics.SwitchTopic(k.topic, topic)
 	k.topic = topic
 }
 
@@ -84,6 +93,7 @@ func (k *KafkaClient) RemoteOffset() (firstOffset int64, lastOffset int64, err e
 
 func (k *KafkaClient) IncrementLastReaderOffset() {
 	k.readerLastOffset++
+	k.kafkaMetrics.IncreaseReaderOffset(k.topic, 1)
 }
 
 func (k *KafkaClient) LastReaderOffset() int64 {
@@ -116,6 +126,7 @@ func (k *KafkaClient) broadcast(ctx context.Context, record kafka.Record) error 
 		return err
 	}
 	k.writerLastOffset++
+	k.kafkaMetrics.IncreaseWriterOffset(k.topic, 1)
 	utils.Logger().Info("broadcast", zap.Any("BaseOffset", rsp.BaseOffset), zap.Any("writerLastOffset", k.writerLastOffset))
 	return nil
 }
@@ -147,6 +158,7 @@ func (k *KafkaClient) fetch(ctx context.Context, start int64) (records []*kafka.
 	if start <= 0 {
 		start = kafka.FirstOffset
 	}
+	startTime := time.Now()
 	rsp, err := k.client.Fetch(ctx, &kafka.FetchRequest{
 		Topic:     k.topic,
 		Partition: 0,
@@ -164,6 +176,7 @@ func (k *KafkaClient) fetch(ctx context.Context, start int64) (records []*kafka.
 		utils.Logger().Error("fetch", zap.Any("kafka err", rsp.Error))
 		return nil, rsp.Error
 	}
+	k.kafkaMetrics.ObserveLatency(k.topic, float64(time.Since(startTime).Milliseconds()))
 	for {
 		record, err := rsp.Records.ReadRecord()
 		if err != nil {

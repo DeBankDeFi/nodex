@@ -5,7 +5,9 @@ import (
 	"context"
 	"io"
 	"math"
+	"time"
 
+	"github.com/DeBankDeFi/db-replicator/pkg/metrics"
 	"github.com/DeBankDeFi/db-replicator/pkg/pb"
 	"github.com/DeBankDeFi/db-replicator/pkg/utils"
 	"google.golang.org/grpc"
@@ -18,6 +20,7 @@ type Client struct {
 	conn     *grpc.ClientConn
 	cache    *utils.Cache
 	addr     string
+	s3Metric *metrics.S3Metrics
 }
 
 func NewClient(addr string) (*Client, error) {
@@ -32,6 +35,7 @@ func NewClient(addr string) (*Client, error) {
 		s3client: pb.NewS3ProxyClient(conn),
 		cache:    utils.NewCache(MaxCacheSize),
 		addr:     addr,
+		s3Metric: metrics.NewS3Metrics(),
 	}, nil
 }
 
@@ -64,6 +68,7 @@ func (c *Client) GetBlock(ctx context.Context, info *pb.BlockInfo, noCache bool)
 	commonPrefix := utils.CommonPrefix(info.Env, info.ChainId, info.Role, info.BlockType)
 	lru := c.cache.GetOrCreatePrefixCache(commonPrefix)
 	key := utils.InfoToPrefix(info)
+	startTime := time.Now()
 	if noCache {
 		val, err := c.getBlock(ctx, info, noCache)
 		if err != nil {
@@ -78,6 +83,8 @@ func (c *Client) GetBlock(ctx context.Context, info *pb.BlockInfo, noCache bool)
 		}
 		header = proto.Clone(val.(*pb.Block)).(*pb.Block)
 	}
+	c.s3Metric.ObserveReadLatency("s3-proxy", float64(time.Since(startTime).Milliseconds()))
+	c.s3Metric.IncreaseReadSize("s3-proxy", int64(proto.Size(header)))
 	return header, nil
 }
 
@@ -115,6 +122,7 @@ func (c *Client) getBlock(ctx context.Context, info *pb.BlockInfo, noCache bool)
 }
 
 func (c *Client) PutBlock(ctx context.Context, block *pb.Block) (err error) {
+	startTime := time.Now()
 	err = c.ResetConn()
 	if err != nil {
 		return err
@@ -152,6 +160,8 @@ func (c *Client) PutBlock(ctx context.Context, block *pb.Block) (err error) {
 	if err != nil {
 		return err
 	}
+	c.s3Metric.ObserveWriteLatency("s3-proxy", float64(time.Since(startTime).Milliseconds()))
+	c.s3Metric.IncreaseWriteSize("s3-proxy", int64(proto.Size(block)))
 	return nil
 }
 
