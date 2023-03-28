@@ -20,7 +20,7 @@ func main() {
 	flag.StringVar(&config.RemoteListenAddr, "listen_addr", "0.0.0.0:7654", "remote server listen address")
 	flag.StringVar(&config.S3ProxyAddr, "s3proxy_addr", "127.0.0.1:8765", "s3 address")
 	flag.StringVar(&config.KafkaAddr, "kafka_addr", "127.0.0.1:9092", "kafka address")
-	flag.StringVar(&config.MetricEndpoint, "metric_address", "：10086", "metric address")
+	flag.StringVar(&config.MetricEndpoint, "metric_address", ":10086", "metric address")
 	flag.StringVar(&config.Env, "env", "test", "env")
 	flag.StringVar(&config.ChainId, "chain_id", "eth", "chain id")
 	flag.StringVar(&config.Role, "role", "master", "master or backup")
