@@ -35,18 +35,18 @@ func NewKafkaMetrics() *KafkaMetrics {
 }
 
 func (m *KafkaMetrics) IncreaseWriterOffset(topic string, offset int64) {
-	m.KafkaWriterOffset.With(topic).Add(float64(offset))
+	m.KafkaWriterOffset.With("topic", topic).Add(float64(offset))
 }
 
 func (m *KafkaMetrics) IncreaseReaderOffset(topic string, offset int64) {
-	m.KafkaReaderOffset.With(topic).Add(float64(offset))
+	m.KafkaReaderOffset.With("topic", topic).Add(float64(offset))
 }
 
 func (m *KafkaMetrics) SwitchTopic(origin, target string) {
-	m.KafkaCurrentTopic.With(origin).Set(0)
-	m.KafkaCurrentTopic.With(target).Set(1)
+	m.KafkaCurrentTopic.With("topic", origin).Set(0)
+	m.KafkaCurrentTopic.With("topic", target).Set(1)
 }
 
 func (m *KafkaMetrics) ObserveLatency(topic string, latency float64) {
-	m.KafkaLatency.With(topic).Observe(latency)
+	m.KafkaLatency.With("topic", topic).Observe(latency)
 }
