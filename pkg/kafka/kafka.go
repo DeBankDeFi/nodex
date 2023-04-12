@@ -47,8 +47,12 @@ func NewKafkaClient(topic string, readerLastOffset int64, addrs ...string) (*Kaf
 	if err != nil {
 		return nil, err
 	}
-	client.kafkaMetrics.IncreaseReaderOffset(topic, readerLastOffset)
-	client.kafkaMetrics.IncreaseWriterOffset(topic, writeLastOffset)
+	if readerLastOffset > 0 {
+		client.kafkaMetrics.IncreaseReaderOffset(topic, readerLastOffset)
+	}
+	if writeLastOffset > 0 {
+		client.kafkaMetrics.IncreaseWriterOffset(topic, writeLastOffset)
+	}
 	utils.Logger().Info("remote offset", zap.Any("readerLastOffset", readerLastOffset), zap.Any("writeFirstOffset", writeFirstOffset), zap.Any("writeLastOffset ", writeLastOffset))
 
 	if readerLastOffset < writeFirstOffset-1 {
@@ -126,7 +130,9 @@ func (k *KafkaClient) broadcast(ctx context.Context, record kafka.Record) error 
 		return err
 	}
 	k.writerLastOffset++
-	k.kafkaMetrics.IncreaseWriterOffset(k.topic, 1)
+	if k.writerLastOffset > 0 {
+		k.kafkaMetrics.IncreaseWriterOffset(k.topic, 1)
+	}
 	utils.Logger().Info("broadcast", zap.Any("BaseOffset", rsp.BaseOffset), zap.Any("writerLastOffset", k.writerLastOffset))
 	return nil
 }
