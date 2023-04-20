@@ -16,6 +16,10 @@ func main() {
 	flag.Parse()
 	go func() {
 		http.Handle("/metrics", promhttp.Handler())
+		http.HandleFunc("/ping", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("pong"))
+		})
 		http.ListenAndServe(prometheusAddr, nil)
 	}()
 	err := s3.ListenAndServe(addr)
