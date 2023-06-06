@@ -14,7 +14,7 @@ import (
 )
 
 func TestS3(t *testing.T) {
-	go s3.ListenAndServe("0.0.0.0:8765")
+	go s3.ListenAndServe("0.0.0.0:8765", 32)
 	client, err := s3.NewClient("0.0.0.0:8765")
 	require.NoErrorf(t, err, "NewClient error")
 	header0 := &pb.Block{

@@ -24,11 +24,12 @@ import (
 )
 
 const (
-	BucketName   = "prod-blockchain-replicator"
-	MaxCacheSize = 256
-	ChunkSize    = 1 << 22
-	Region       = "ap-northeast-1"
+	BucketName = "prod-blockchain-replicator"
+	ChunkSize  = 1 << 22
+	Region     = "ap-northeast-1"
 )
+
+var MaxCacheSize uint = 256
 
 type server struct {
 	pb.UnimplementedS3ProxyServer
@@ -39,7 +40,8 @@ type server struct {
 	s3Metric *metrics.S3Metrics
 }
 
-func ListenAndServe(addr string) error {
+func ListenAndServe(addr string, cacheSize uint) error {
+	MaxCacheSize = cacheSize
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		return err

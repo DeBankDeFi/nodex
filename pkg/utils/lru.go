@@ -7,11 +7,10 @@ import (
 )
 
 const (
-	UnInited     int = 0
-	InProcess    int = 1
-	Sucess       int = 2
-	Failed       int = 3
-	bucketsCount     = 512
+	UnInited  int = 0
+	InProcess int = 1
+	Sucess    int = 2
+	Failed    int = 3
 )
 
 type Cache struct {
