@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DeBankDeFi/db-replicator/pkg/pb"
-	"github.com/DeBankDeFi/db-replicator/pkg/s3"
+	"github.com/DeBankDeFi/nodex/pkg/pb"
+	"github.com/DeBankDeFi/nodex/pkg/s3"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 )

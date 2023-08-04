@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DeBankDeFi/db-replicator/pkg/s3"
+	"github.com/DeBankDeFi/nodex/pkg/s3"
 	"github.com/avast/retry-go"
 )
 
@@ -29,6 +29,7 @@ func main() {
 				fmt.Printf("%v\n", err)
 				return err
 			}
+			fmt.Printf("success\n")
 			return nil
 		},
 		retry.Attempts(10),

@@ -1,0 +1,9 @@
+FROM golang:1.20rc1-buster AS build-env
+WORKDIR /root/ndrc
+COPY . .
+RUN go build -o ndrc ./cmd/ndrc
+
+FROM ubuntu:20.04
+RUN apt-get update && apt-get install ca-certificates -y && update-ca-certificates
+COPY --from=build-env /root/ndrc/ndrc /usr/bin/ndrc
+ENTRYPOINT ["/usr/bin/ndrc"]

@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DeBankDeFi/db-replicator/pkg/db"
-	"github.com/DeBankDeFi/db-replicator/pkg/pb"
-	"github.com/DeBankDeFi/db-replicator/pkg/utils"
+	"github.com/DeBankDeFi/nodex/pkg/db"
+	"github.com/DeBankDeFi/nodex/pkg/pb"
+	"github.com/DeBankDeFi/nodex/pkg/utils"
 	"github.com/avast/retry-go/v4"
 	"github.com/syndtr/goleveldb/leveldb"
 	"google.golang.org/grpc"

@@ -6,7 +6,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"github.com/DeBankDeFi/db-replicator/pkg/s3"
+	"github.com/DeBankDeFi/nodex/pkg/s3"
 )
 
 func main() {

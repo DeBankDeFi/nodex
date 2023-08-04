@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DeBankDeFi/db-replicator/pkg/pb"
-	"github.com/DeBankDeFi/db-replicator/pkg/utils"
+	"github.com/DeBankDeFi/nodex/pkg/pb"
+	"github.com/DeBankDeFi/nodex/pkg/utils"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"

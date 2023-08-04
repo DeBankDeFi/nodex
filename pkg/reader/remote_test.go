@@ -3,9 +3,9 @@ package reader_test
 // import (
 // 	"testing"
 
-// 	"github.com/DeBankDeFi/db-replicator/pkg/db"
-// 	"github.com/DeBankDeFi/db-replicator/pkg/pb"
-// 	"github.com/DeBankDeFi/db-replicator/pkg/reader"
+// 	"github.com/DeBankDeFi/nodex/pkg/db"
+// 	"github.com/DeBankDeFi/nodex/pkg/pb"
+// 	"github.com/DeBankDeFi/nodex/pkg/reader"
 // 	"github.com/stretchr/testify/require"
 // 	"github.com/syndtr/goleveldb/leveldb"
 // )

@@ -2,17 +2,18 @@ package main
 
 import (
 	"flag"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"os"
 	"os/signal"
 	"syscall"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+
 	"net/http"
 	_ "net/http/pprof"
 
-	"github.com/DeBankDeFi/db-replicator/pkg/db"
-	"github.com/DeBankDeFi/db-replicator/pkg/reader"
-	"github.com/DeBankDeFi/db-replicator/pkg/utils"
+	"github.com/DeBankDeFi/nodex/pkg/db"
+	"github.com/DeBankDeFi/nodex/pkg/reader"
+	"github.com/DeBankDeFi/nodex/pkg/utils"
 )
 
 func main() {

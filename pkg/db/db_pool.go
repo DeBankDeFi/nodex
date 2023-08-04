@@ -6,8 +6,8 @@ import (
 	"math"
 	"sync"
 
-	"github.com/DeBankDeFi/db-replicator/pkg/pb"
-	"github.com/DeBankDeFi/db-replicator/pkg/utils"
+	"github.com/DeBankDeFi/nodex/pkg/pb"
+	"github.com/DeBankDeFi/nodex/pkg/utils"
 	"github.com/syndtr/goleveldb/leveldb"
 	"google.golang.org/protobuf/proto"
 )

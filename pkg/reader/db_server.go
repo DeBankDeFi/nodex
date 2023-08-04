@@ -6,9 +6,9 @@ import (
 	"math"
 	"net"
 
-	"github.com/DeBankDeFi/db-replicator/pkg/db"
-	"github.com/DeBankDeFi/db-replicator/pkg/pb"
-	"github.com/DeBankDeFi/db-replicator/pkg/utils"
+	"github.com/DeBankDeFi/nodex/pkg/db"
+	"github.com/DeBankDeFi/nodex/pkg/pb"
+	"github.com/DeBankDeFi/nodex/pkg/utils"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/syndtr/goleveldb/leveldb"
 	"go.uber.org/zap"

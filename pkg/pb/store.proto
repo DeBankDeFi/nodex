@@ -1,7 +1,7 @@
 syntax = "proto3";
 package pb;
 
-option go_package = "github.com/DeBankDeFi/db-replicator/pkg/pb";
+option go_package = "github.com/DeBankDeFi/nodex/pkg/pb";
 
 
 import "pkg/pb/block.proto";

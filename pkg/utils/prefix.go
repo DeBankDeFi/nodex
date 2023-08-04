@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DeBankDeFi/db-replicator/pkg/pb"
+	"github.com/DeBankDeFi/nodex/pkg/pb"
 )
 
 func TopicPrefix(env, chainId, role string) string {

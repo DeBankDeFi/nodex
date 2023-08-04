@@ -4,12 +4,12 @@ import (
 	"context"
 	"sync"
 
-	"github.com/DeBankDeFi/db-replicator/pkg/db"
-	"github.com/DeBankDeFi/db-replicator/pkg/kafka"
-	"github.com/DeBankDeFi/db-replicator/pkg/ndrc"
-	"github.com/DeBankDeFi/db-replicator/pkg/pb"
-	"github.com/DeBankDeFi/db-replicator/pkg/s3"
-	"github.com/DeBankDeFi/db-replicator/pkg/utils"
+	"github.com/DeBankDeFi/nodex/pkg/db"
+	"github.com/DeBankDeFi/nodex/pkg/kafka"
+	"github.com/DeBankDeFi/nodex/pkg/ndrc"
+	"github.com/DeBankDeFi/nodex/pkg/pb"
+	"github.com/DeBankDeFi/nodex/pkg/s3"
+	"github.com/DeBankDeFi/nodex/pkg/utils"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )

@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"os"
 
-	"github.com/DeBankDeFi/db-replicator/pkg/pb"
+	"github.com/DeBankDeFi/nodex/pkg/pb"
 )
 
 // Config represents the configuration of the replicator.
