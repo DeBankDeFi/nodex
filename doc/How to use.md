@@ -1,7 +1,7 @@
 ## Build
 
 1. clone nodex repo  
-`git clone `
+`git clone https://github.com/DeBankDeFi/nodex.git`
 2. generate protobuf file  
 `protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative pkg/pb/*.proto`
 3. build s3proxy  
@@ -11,9 +11,9 @@
 5. build ndrc  
 `go build -o ndrc ./cmd/ndrc`
 6. clone this repo   
-[Title](https://github.com/DeBankDeFi/go-ethereum-debank)
+`https://github.com/DeBankDeFi/go-ethereum-debank.git`
 7. build geth for nodex   
-`make geth`
+`cd go-ethereum-debank && make geth`
 
 ## Deploy
 need s3 and kafka
